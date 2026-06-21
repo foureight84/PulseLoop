@@ -14,8 +14,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /**
@@ -91,7 +89,6 @@ class RingBLEClient(private val context: Context) {
     private data class QueuedWrite(val data: ByteArray, val useCommandChannel: Boolean)
     private val writeQueue = mutableListOf<QueuedWrite>()
     private var writeInFlight = false
-    private val writeMutex = Mutex()
 
     // MARK: Connection state
 
@@ -307,6 +304,8 @@ class RingBLEClient(private val context: Context) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
+                        bluetoothGatt = gatt
+                        gatt.requestMtu(512)  // request before service discovery for best results
                         gatt.discoverServices()
                     } else {
                         updateState { copy(lastError = "GATT connect failed: $status") }
@@ -322,7 +321,6 @@ class RingBLEClient(private val context: Context) {
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
             val driver = activeDriver ?: return
-            gatt.requestMtu(512)  // larger MTU for Colmi big-data frames
             for (service in gatt.services) {
                 val svcUuid = service.uuid.toString()
                 val isRingSvc = driver.serviceUUIDs.any { it == svcUuid }
@@ -373,9 +371,9 @@ class RingBLEClient(private val context: Context) {
         }
 
         override fun onCharacteristicChanged(
-            gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic,
-            value: ByteArray
+            gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic
         ) {
+            val value = characteristic.value ?: return
             val driver = activeDriver ?: return
             if (!driver.notifyUUIDs.any { it == characteristic.uuid.toString() }) return
 

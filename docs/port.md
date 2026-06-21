@@ -228,13 +228,19 @@ UI (SwiftUI) ─────────────────────┘
 - [x] **Verify:** decode existing hex dumps from the iOS test suite (real R11 activity buckets → 5145 steps verified)
 - **Committed:** branch `feature/android_phase1` — 17 files, 2048 lines
 
-### Phase 2: BLE Layer (Week 3–4)
-- Implement `RingBLEClient.kt` with `BluetoothLeScanner` + `BluetoothGatt`
-- Implement `WearableDriver`, `WearableCoordinator` interfaces
-- Port `ColmiCoordinator`, `JringCoordinator`
-- Write serialization queue with `Mutex`
-- Handle Android 12+ BLE permissions
-- **Verify:** connect to a real ring, receive notifications, decode packets
+### Phase 2: BLE Layer ✅ COMPLETE
+- [x] Implement `RingBLEClient.kt` with `BluetoothLeScanner` + `BluetoothGatt`
+- [x] Port `PulseEventBus.kt` (SharedFlow-based event bus, 16 typed events)
+- [x] Port `RingEventBridge.kt` (range-gated typed event fan-out)
+- [x] Write serialization queue (one outstanding write at a time)
+- [x] Handle Android 12+ BLE permissions (`BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`)
+- [x] AndroidManifest.xml with BLE + foreground service permissions
+- [x] Coordinator registry: JringCoordinator + ColmiCoordinator
+- [x] Auto-reconnect on unexpected disconnect
+- [x] MTU 512 request for Colmi big-data frames
+- [x] Last-known ring persistence via SharedPreferences
+- **Committed:** branch `feature/android_phase2` — 5 files, 642 lines
+- **Code review:** MTU request timing fix (moved to onConnectionStateChange), removed unused Mutex
 
 ### Phase 3: Persistence (Week 5–6)
 - Create Room entities (`DeviceEntity`, `MeasurementEntity`, `ActivitySessionEntity`, `SleepSessionEntity`, `CoachMessageEntity`, etc.)

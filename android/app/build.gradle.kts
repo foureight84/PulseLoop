@@ -42,6 +42,9 @@ dependencies {
     // Phase 1 only needs kotlin stdlib + serialization
     // Phase 2+ will add: Compose, Room, OkHttp
 
+    // Phase 2: BLE, permissions
+    implementation("androidx.core:core-ktx:1.15.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

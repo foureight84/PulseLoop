@@ -1,7 +1,22 @@
 # PulseLoop → Android Porting Plan
 
 > Generated from graph analysis of `/home/khoa/projects/PulseLoopIOS`  
-> 2458 nodes · 5306 edges · 127 communities · 126 Swift files
+> 2766 nodes · 5834 edges · 151 communities · 126 Swift + 17 Kotlin files
+
+## Workflow
+
+1. Branch `feature/android` — integration branch for all merged phases
+2. Per phase (1–7):
+   - Create `feature/android_phaseN` from `feature/android`
+   - Implement the phase per this plan
+   - Commit, push, run `graphify update .`
+   - Senior-dev code review → apply fixes, commit
+   - No-ff merge `feature/android_phaseN` → `feature/android`
+   - Update this file's phase status
+7. Repeat 2–6 until Phase 7 is merged
+8. **Start a new session** before beginning the next phase (do not reuse context)
+
+---
 
 ## Summary
 

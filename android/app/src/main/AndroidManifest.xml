@@ -33,5 +33,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Phase 6: Workout foreground service -->
+        <service
+            android:name=".service.WorkoutForegroundService"
+            android:foregroundServiceType="health"
+            android:exported="false" />
     </application>
 </manifest>

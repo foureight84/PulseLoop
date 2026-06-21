@@ -1,7 +1,7 @@
 # PulseLoop → Android Porting Plan
 
 > Generated from graph analysis of `/home/khoa/projects/PulseLoopIOS`  
-> 2766 nodes · 5834 edges · 151 communities · 126 Swift + 17 Kotlin files
+> 3209 nodes · 6518 edges · 176 communities · 126 Swift + 45 Kotlin files
 
 ## Workflow
 

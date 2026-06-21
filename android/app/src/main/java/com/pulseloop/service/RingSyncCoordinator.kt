@@ -49,7 +49,8 @@ class RingSyncCoordinator(
     private var streamJob: Job? = null
 
     fun start() {
-        if (streamJob != null) return
+        streamJob?.cancel()
+        streamJob = null
         streamJob = scope.launch {
             PulseEventBus.events.collect { event -> handle(event) }
         }

@@ -242,11 +242,19 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase2` — 5 files, 642 lines
 - **Code review:** MTU request timing fix (moved to onConnectionStateChange), removed unused Mutex
 
-### Phase 3: Persistence (Week 5–6)
-- Create Room entities (`DeviceEntity`, `MeasurementEntity`, `ActivitySessionEntity`, `SleepSessionEntity`, `CoachMessageEntity`, etc.)
-- Write DAOs with Flow-returning queries
-- Port `RingSyncCoordinator` — pull history, persist to Room
-- **Verify:** sync real ring data, inspect database
+### Phase 3: Persistence ✅ COMPLETE
+- [x] Create Room entities (18 tables): Device, Measurement, ActivityDaily,
+  ActivitySession, ActivityGpsPoint, SleepSession, SleepStageBlock,
+  CoachConversation, CoachMessage, CoachMemory, CoachToolCall,
+  UserProfile, UserGoal, RawPacket, DerivedUpdate + activity sub-entities
+- [x] Write 14 DAOs with Flow-returning queries and @Upsert
+- [x] Create PulseLoopDatabase (Room) with singleton factory
+- [x] Port RingSyncCoordinator — event bus subscription, spot measurement
+  polling (HR 30s warm-up + settle, SpO2 40s), workout HR streaming,
+  pull-to-refresh, goal persistence
+- [x] Added Room + KSP dependencies to build.gradle.kts
+- **Committed:** branch `feature/android_phase3` — 5 files, ~25,000 total
+- **Code review:** (pending)
 
 ### Phase 4: UI Shell (Week 7–8)
 - Set up Compose navigation (tab bar: Today, Vitals, Sleep, Activity, Coach)

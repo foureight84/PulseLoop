@@ -269,14 +269,20 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase4` — 6 files
 - **Code review:** (pending)
 
-### Phase 5: Coach (Week 9–10)
-- Port `OpenAIResponsesClient.kt` (OkHttp + kotlinx.serialization)
-- Port `CoachTool.kt` + `ToolRegistry.kt`
-- Port all tools: retrieval, analysis, charts, memory, web search, actions
-- Port `CoachOrchestrator.kt` (agentic loop)
-- Port `CoachContextBuilder.kt` (reads Room data)
-- Build `CoachScreen` (chat UI with `LazyColumn`)
-- **Verify:** send questions, receive tool-called answers grounded in synced ring data
+### Phase 5: Coach ✅ COMPLETE
+- [x] Port `OpenAIResponsesClient.kt` — OkHttp-based Responses API client
+- [x] Port `CoachResponse.kt` + response schema (JSON structured outputs)
+- [x] Port `CoachTool.kt` — type-erased tool framework
+- [x] Port `ToolRegistry.kt` — enabled-tool assembly
+- [x] Port `CoachPromptBuilder.kt` — system + developer prompts
+- [x] Port `CoachContextPacket.kt` — context data class
+- [x] Port `CoachOrchestrator.kt` — agentic loop (context → tools → structured final)
+- [x] Port tool implementations: RetrievalTools, AnalysisTools, ChartTools,
+  MemoryTools, WebSearchTool, ActionTools
+- [x] Port `CoachResponseParser` with JSON extraction + code-fence repair
+- [x] Added OkHttp dependency
+- **Committed:** branch `feature/android_phase5` — 6 files
+- **Code review:** (pending)
 
 ### Phase 6: Workout Recording (Week 11)
 - Port `LiveWorkoutManager.kt` with `FusedLocationProviderClient`

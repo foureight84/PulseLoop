@@ -64,6 +64,10 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
+
+    // Phase 5: Coach — OkHttp for OpenAI API
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 

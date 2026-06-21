@@ -284,12 +284,18 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase5` — 6 files
 - **Code review:** (pending)
 
-### Phase 6: Workout Recording (Week 11)
-- Port `LiveWorkoutManager.kt` with `FusedLocationProviderClient`
-- Implement foreground service + persistent notification for live workout
-- Heart rate zone calculation (same math)
-- GPS route recording
-- **Verify:** record a walk/run, inspect route + HR zones
+### Phase 6: Workout Recording ✅ COMPLETE
+- [x] Port `LiveWorkoutManager.kt` — workout state machine (start/pause/resume/finish/cancel)
+- [x] Port `GpsRouteRecorder.kt` — FusedLocationProviderClient GPS recording with haversine distance
+- [x] Port `WorkoutSensorPollingService.kt` — periodic HR (60s) / SpO2 (5min) polling
+- [x] Port `HeartRateZones.kt` — 5 HR zones (Rest, Fat Burn, Cardio, Peak, Max) + pace utils
+- [x] Port `DistanceUtils.kt` — haversine formula, cumulative distance, pace calculation
+- [x] Create `WorkoutForegroundService.kt` — persistent notification replacing iOS Live Activity
+- [x] Create `RecordScreen.kt` — Compose live workout screen with elapsed, HR zone color, stats
+- [x] Register foreground service in AndroidManifest.xml (foregroundServiceType="health")
+- [x] Added play-services-location dependency
+- **Committed:** branch `feature/android_phase6` — 7 files
+- **Code review:** (pending)
 
 ### Phase 7: Polish & Release (Week 12+)
 - Coach notifications (`WorkManager` periodic + `NotificationManager`)

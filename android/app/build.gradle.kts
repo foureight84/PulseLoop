@@ -68,6 +68,9 @@ dependencies {
     // Phase 5: Coach — OkHttp for OpenAI API
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Phase 6: Location for GPS route recording
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 

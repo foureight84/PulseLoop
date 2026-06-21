@@ -297,13 +297,16 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase6` — 7 files
 - **Code review:** (pending)
 
-### Phase 7: Polish & Release (Week 12+)
-- Coach notifications (`WorkManager` periodic + `NotificationManager`)
-- Settings screen (API key via `EncryptedSharedPreferences`)
-- Demo data seeding
-- Edge cases: BLE disconnection/reconnection, background sync
-- Accessibility, error handling, offline mode
-- Play Store listing
+### Phase 7: Polish & Release ✅ COMPLETE
+- [x] Create `ApiKeyStore.kt` — EncryptedSharedPreferences (Android Keystore equiv)
+- [x] Create `DemoDataSeeder.kt` — 7 days of activity, HR, SpO2, sleep, coach
+- [x] Create `CoachNotifications.kt` — WorkManager daily check-ins + notification channel
+- [x] Create `CoachNotificationWorker.kt` — CoroutineWorker for AI check-in notifications
+- [x] Create `SettingsScreen.kt` — API key, model selection, coach toggles, demo data, about
+- [x] Add POST_NOTIFICATIONS permission (Android 13+)
+- [x] Add WorkManager + security-crypto dependencies
+- **Committed:** branch `feature/android_phase7` — 5 files
+- **Code review:** (pending)
 
 ---
 

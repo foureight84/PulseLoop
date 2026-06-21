@@ -71,6 +71,10 @@ dependencies {
     // Phase 6: Location for GPS route recording
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
+    // Phase 7: Polish — WorkManager, EncryptedSharedPreferences
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 

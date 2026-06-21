@@ -256,12 +256,18 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase3` — 5 files, ~25,000 total
 - **Code review:** (pending)
 
-### Phase 4: UI Shell (Week 7–8)
-- Set up Compose navigation (tab bar: Today, Vitals, Sleep, Activity, Coach)
-- Build `TodayScreen` with mock data
-- Build `VitalsScreen`, `SleepScreen`, `ActivityScreen`
-- Port design system (MetricTile, charts, theming)
-- **Verify:** navigate all screens with seeded demo data
+### Phase 4: UI Shell ✅ COMPLETE
+- [x] Set up Compose navigation (5-tab bar: Today, Vitals, Sleep, Activity, Coach)
+- [x] Build `TodayScreen` with MetricTile cards + HR/SpO2 cards
+- [x] Build `VitalsScreen` with trend placeholders + HRV/Stress/Temp
+- [x] Build `SleepScreen` with last-night summary + stage badges + sleep score
+- [x] Build `ActivityScreen` with steps/distance + recent workouts + Start Workout button
+- [x] Build `CoachScreen` with welcome message + settings prompt
+- [x] Create `MetricTile` reusable component (label, value, unit, trend)
+- [x] Material 3 theme with PulseLoop brand colors (#863BFF)
+- [x] Added Compose BOM, Material 3, Navigation, Lifecycle deps
+- **Committed:** branch `feature/android_phase4` — 6 files
+- **Code review:** (pending)
 
 ### Phase 5: Coach (Week 9–10)
 - Port `OpenAIResponsesClient.kt` (OkHttp + kotlinx.serialization)

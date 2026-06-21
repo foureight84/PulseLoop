@@ -204,13 +204,14 @@ UI (SwiftUI) ─────────────────────┘
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Week 1–2)
-- Set up Gradle project with Kotlin, Compose, Room, OkHttp, kotlinx.serialization
-- Port `RingProtocol.swift` → `RingProtocol.kt` (entirely arithmetic — zero Android deps)
-- Port `ColmiDecoder.kt`, `ColmiEncoder.kt`, `JringDecoder.kt`, `JringEncoder.kt`
-- Port `RingPacket`, `RingDecodedEvent`, `RingCommandID` enums
-- Write unit tests against captured packet dumps (the existing `ColmiDecoderTests` has 377+ lines of test data — port those test vectors directly)
-- **Verify:** decode existing hex dumps from the iOS test suite
+### Phase 1: Foundation ✅ COMPLETE
+- [x] Set up Gradle project with Kotlin, Compose, Room, OkHttp, kotlinx.serialization
+- [x] Port `RingProtocol.swift` → `RingProtocol.kt` (entirely arithmetic — zero Android deps)
+- [x] Port `ColmiDecoder.kt`, `ColmiEncoder.kt`, `JringDriver.kt`
+- [x] Port `RingPacket`, `RingDecodedEvent`, `RingCommandID` enums
+- [x] Write unit tests against captured packet dumps (24 tests: framing, normal decode, big-data, reassembly, real R11 captures)
+- [x] **Verify:** decode existing hex dumps from the iOS test suite (real R11 activity buckets → 5145 steps verified)
+- **Committed:** branch `feature/android_phase1` — 17 files, 2048 lines
 
 ### Phase 2: BLE Layer (Week 3–4)
 - Implement `RingBLEClient.kt` with `BluetoothLeScanner` + `BluetoothGatt`

@@ -127,7 +127,7 @@ object ColmiDecoder {
         val marker = v[1].toInt()
         if (marker == 0xFF || marker == 0xF0 || v.size < 13) return emptyList()
 
-        fun hexLit(b: UByte): Int = String.format("%02x", b.toByte()).toInt()
+        fun hexLit(b: UByte): Int = String.format("%02x", b.toInt()).toInt()
         val year = 2000 + hexLit(v[1])
         val month = hexLit(v[2])
         val day = hexLit(v[3])

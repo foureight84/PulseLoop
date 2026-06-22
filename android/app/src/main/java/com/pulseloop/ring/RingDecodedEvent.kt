@@ -205,11 +205,12 @@ sealed class RingDecodedEvent {
     }
 
     data class Status(
-        val address: String?
+        val address: String?,
+        val firmware: String? = null,
     ) : RingDecodedEvent() {
         override val kind = "status"
         override val confidence = DecodeConfidence.KNOWN
-        override val debugJSON = """{"address":"${address ?: ""}"}"""
+        override val debugJSON = """{"address":"${address ?: ""}","firmware":"${firmware ?: ""}"}"""
     }
 
     data class TimeSyncAck(

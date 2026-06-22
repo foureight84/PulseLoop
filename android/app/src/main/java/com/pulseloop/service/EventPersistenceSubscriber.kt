@@ -30,10 +30,9 @@ class EventPersistenceSubscriber(
                 val device = db.deviceDao().current() ?: DeviceEntity()
                 val state = when (event.state) {
                     RingConnectionState.CONNECTED -> {
-                        // Clear all demo data on first real ring connection
                         db.measurementDao().clearDemo()
                         db.activityDailyDao().clearDemo()
-                        db.sleepSessionDao().clear()  // remove demo sleep
+                        db.sleepSessionDao().clear()
                         "CONNECTED"
                     }
                     RingConnectionState.DISCONNECTED -> "DISCONNECTED"
@@ -46,6 +45,7 @@ class EventPersistenceSubscriber(
                 db.deviceDao().upsert(device.copy(
                     stateRaw = state,
                     bleAddressHint = event.address ?: device.bleAddressHint,
+                    firmwareVersion = event.firmware ?: device.firmwareVersion,
                     lastConnectedAt = if (state == "CONNECTED") System.currentTimeMillis() else device.lastConnectedAt,
                     updatedAt = System.currentTimeMillis(),
                 ))

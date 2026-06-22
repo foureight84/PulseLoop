@@ -72,7 +72,7 @@ object RingEventBridge {
         }
 
         is RingDecodedEvent.Status ->
-            listOf(PulseEvent.DeviceStateChanged(RingConnectionState.CONNECTED, decoded.address))
+            listOf(PulseEvent.DeviceStateChanged(RingConnectionState.CONNECTED, decoded.address, decoded.firmware))
 
         is RingDecodedEvent.TimeSyncAck, is RingDecodedEvent.CommandAck, is RingDecodedEvent.Unknown ->
             emptyList()

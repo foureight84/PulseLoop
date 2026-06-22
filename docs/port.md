@@ -474,6 +474,20 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase11` — 8 files, 1246 lines
 - **Code review:** (pending)
 
+### Phase 12: Coach Summary Pipeline ✅ COMPLETE
+- [x] Create `CoachSummaryEntity` — Room entity in SleepCoachEntities.kt
+- [x] Create `CoachSummaryDao` — Room DAO in Daos.kt (get, latest, upsert, delete)
+- [x] Create `CoachSummaryContent.kt` — structured {title, body, chips} model + JSON schema
+- [x] Create `CoachSummaryPromptBuilder.kt` — system + developer prompts for summaries
+- [x] Create `CoachSummaryGenerator.kt` — single-shot OpenAI call, falls back to scripted
+- [x] Create `CoachSummaryContextBuilder.kt` — Today/sleep-day context + data signatures
+- [x] Create `CoachSummaryService.kt` — self-gating regeneration with rate limit
+- [x] Create `CoachSummaryCoordinator.kt` — PulseEventBus subscriber, 30s debounce
+- [x] Update PulseLoopDatabase.kt — v2 with CoachSummaryEntity + CoachSummaryDao
+- [x] Wire summaryCoordinator.start() in PulseLoopApp.kt
+- **Committed:** branch `feature/android_phase12` — 10 files, 562 lines
+- **Code review:** (pending)
+
 ---
 
 ## Risk Assessment

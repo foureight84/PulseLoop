@@ -26,6 +26,9 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
         val heartRate: Int? = null,
         val spo2: Int? = null,
         val restingHR: Double? = null,
+        val bloodPressureSystolic: Int? = null,
+        val bloodPressureDiastolic: Int? = null,
+        val bloodSugar: Double? = null,
         val batteryPercent: Int = 0,
         val deviceState: String = "idle",
         val isConnected: Boolean = false,
@@ -75,6 +78,27 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
                     _state.update { it.copy(spo2 = spo2?.toInt(), lastUpdated = System.currentTimeMillis()) }
                 } catch (_: Exception) {}
                 kotlinx.coroutines.delay(2000)
+            }
+        }
+        // Reactive BP — poll latest every 5s
+        viewModelScope.launch {
+            while (true) {
+                try {
+                    val sys = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)
+                    val dia = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)
+                    _state.update { it.copy(bloodPressureSystolic = sys?.toInt(), bloodPressureDiastolic = dia?.toInt(), lastUpdated = System.currentTimeMillis()) }
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(5000)
+            }
+        }
+        // Reactive Glucose — poll latest every 5s
+        viewModelScope.launch {
+            while (true) {
+                try {
+                    val glucose = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name)
+                    _state.update { it.copy(bloodSugar = glucose, lastUpdated = System.currentTimeMillis()) }
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(5000)
             }
         }
     }
@@ -147,9 +171,14 @@ class VitalsViewModel(db: PulseLoopDatabase) : ViewModel() {
         val latestHrv: Double? = null,
         val latestStress: Double? = null,
         val latestTemp: Double? = null,
+        val bpSystolic: Int? = null,
+        val bpDiastolic: Int? = null,
+        val bloodSugar: Double? = null,
         val supportsHrv: Boolean = false,
         val supportsStress: Boolean = false,
         val supportsTemp: Boolean = false,
+        val supportsBP: Boolean = false,
+        val supportsGlucose: Boolean = false,
     )
 
     private val _state = MutableStateFlow(VitalsState())
@@ -194,9 +223,14 @@ class VitalsViewModel(db: PulseLoopDatabase) : ViewModel() {
             latestHrv = hrv.lastOrNull()?.value,
             latestStress = stress.lastOrNull()?.value,
             latestTemp = temp.lastOrNull()?.value,
+            bpSystolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)?.toInt(),
+            bpDiastolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)?.toInt(),
+            bloodSugar = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name),
             supportsHrv = caps.contains(WearableCapability.HRV),
             supportsStress = caps.contains(WearableCapability.STRESS),
             supportsTemp = caps.contains(WearableCapability.TEMPERATURE),
+            supportsBP = caps.contains(WearableCapability.BLOOD_PRESSURE),
+            supportsGlucose = caps.contains(WearableCapability.BLOOD_SUGAR),
         )
     }
 }

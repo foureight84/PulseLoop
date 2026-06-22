@@ -195,6 +195,42 @@ fun TodayScreen(
             }
         }
 
+        // Blood pressure (if available)
+        if (state.bloodPressureSystolic != null || state.bloodPressureDiastolic != null) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Blood Pressure", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${state.bloodPressureSystolic ?: "--"} / ${state.bloodPressureDiastolic ?: "--"}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text("mmHg", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+
+        // Blood sugar (if available)
+        if (state.bloodSugar != null) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Blood Sugar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            String.format("%.1f", state.bloodSugar),
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text("mg/dL", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+
         item {
             if (state.steps == null) {
                 Text(
@@ -359,6 +395,46 @@ fun VitalsScreen(viewModel: VitalsViewModel? = null) {
                             SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043))
                         } else {
                             Text("No temperature data yet — temperature trends appear after overnight wear.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Blood Pressure (capability-gated)
+        if (state.supportsBP) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Blood Pressure", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        if (state.bpSystolic != null || state.bpDiastolic != null) {
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text("${state.bpSystolic ?: "--"} / ${state.bpDiastolic ?: "--"}", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(" mmHg", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                        } else {
+                            Text("No blood pressure data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Blood Sugar (capability-gated)
+        if (state.supportsGlucose) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Blood Sugar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        if (state.bloodSugar != null) {
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(String.format("%.1f", state.bloodSugar), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(" mg/dL", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                        } else {
+                            Text("No blood sugar data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

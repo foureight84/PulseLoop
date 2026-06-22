@@ -61,11 +61,11 @@ object RingDecoder {
                     bytes.slice(3..8).joinToString(":") { String.format("%02x", it) }
                 } else null
                 // Firmware version is at bytes[9..12] as two LE 16-bit values.
-                // Example: 3a 00 2a 00 → "003A002A" (matches official app)
-                val fwBytes = if (bytes.size >= 12) {
-                    val a = String.format("%02x%02x", bytes[9], bytes[8])
-                    val b = String.format("%02x%02x", bytes[11], bytes[10])
-                    a + b
+                // Example: bytes 3a 00 2a 00 → "003A002A" (matches official app)
+                val fwBytes = if (bytes.size >= 13) {
+                    val a = ((bytes[10].toInt() and 0xFF) shl 8) or (bytes[9].toInt() and 0xFF)
+                    val b = ((bytes[12].toInt() and 0xFF) shl 8) or (bytes[11].toInt() and 0xFF)
+                    String.format("%04X%04X", a, b)
                 } else null
                 RingDecodedEvent.Status(address = address, firmware = fwBytes)
             }

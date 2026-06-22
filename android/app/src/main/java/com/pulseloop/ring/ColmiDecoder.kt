@@ -86,7 +86,7 @@ object ColmiDecoder {
         return (startIndex until v.size - 1).mapNotNull { i ->
             val bpm = v[i].toInt()
             if (bpm == 0) return@mapNotNull null
-            val ts = base.plusMinutes((minutesInPrevious + (i - startIndex) * 5).toLong())
+            val ts = base.plusMinutes((minutesInPrevious + (i - startIndex) * 5).toLong()).toInstant()
             RingDecodedEvent.HistoryMeasurement(
                 kind_field = MeasurementKind.HEART_RATE, value = bpm.toDouble(), _timestamp = ts
             )
@@ -102,7 +102,7 @@ object ColmiDecoder {
         return (startIndex until v.size - 1).mapNotNull { i ->
             val stress = v[i].toInt()
             if (stress == 0) return@mapNotNull null
-            val ts = base.plusMinutes((minutesInPrevious + (i - startIndex) * 30).toLong())
+            val ts = base.plusMinutes((minutesInPrevious + (i - startIndex) * 30).toLong()).toInstant()
             RingDecodedEvent.StressSample(value = stress, _timestamp = ts)
         }
     }
@@ -116,7 +116,7 @@ object ColmiDecoder {
         return (startIndex until v.size - 1).mapNotNull { i ->
             val hrv = v[i].toInt()
             if (hrv == 0) return@mapNotNull null
-            val ts = base.plusMinutes((minutesInPrevious + (i - startIndex) * 30).toLong())
+            val ts = base.plusMinutes((minutesInPrevious + (i - startIndex) * 30).toLong()).toInstant()
             RingDecodedEvent.HrvSample(value = hrv, _timestamp = ts)
         }
     }

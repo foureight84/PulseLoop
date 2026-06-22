@@ -13,8 +13,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.pulseloop.data.PulseLoopDatabase
+import com.pulseloop.ring.RingBLEClient
 import com.pulseloop.ui.screens.*
 import com.pulseloop.ui.theme.PulseLoopTheme
+import com.pulseloop.ui.viewmodels.TodayViewModel
 
 /**
  * Root composable — ported from RootViews.swift.
@@ -23,6 +26,10 @@ import com.pulseloop.ui.theme.PulseLoopTheme
 @Composable
 fun PulseLoopApp() {
     PulseLoopTheme {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val db = remember { PulseLoopDatabase.getInstance(context) }
+        val todayVM = remember { TodayViewModel(db) }
+        val bleClient = remember { RingBLEClient(context) }
         val navController = rememberNavController()
         val tabs = listOf(
             Tab("today", "Today", Icons.Filled.Today, Icons.Outlined.Today),
@@ -65,11 +72,18 @@ fun PulseLoopApp() {
                 startDestination = "today",
                 modifier = Modifier.padding(padding),
             ) {
-                composable("today") { TodayScreen() }
+                composable("today") { TodayScreen(navController, todayVM) }
                 composable("vitals") { VitalsScreen() }
                 composable("sleep") { SleepScreen() }
                 composable("activity") { ActivityScreen() }
                 composable("coach") { CoachScreen() }
+                composable("settings") { SettingsScreen() }
+                composable("pairing") {
+                    PairingScreen(
+                        bleClient = bleClient,
+                        onConnected = { navController.popBackStack() },
+                    )
+                }
             }
         }
     }

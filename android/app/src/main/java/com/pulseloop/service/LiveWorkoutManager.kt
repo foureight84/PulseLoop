@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.Intent
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.entity.ActivitySessionEntity
-import com.pulseloop.ring.RingSyncCoordinator
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Ported from [LiveWorkoutManager] in LiveWorkoutManager.swift.

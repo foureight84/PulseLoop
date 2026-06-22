@@ -2,7 +2,6 @@ package com.pulseloop.service
 
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.entity.ActivitySensorPollEntity
-import com.pulseloop.ring.RingSyncCoordinator
 import kotlinx.coroutines.*
 
 /**

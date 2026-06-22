@@ -21,9 +21,9 @@ enum class SleepStage {
 
     companion object {
         fun fromByte(byte: UByte): SleepStage = when (byte) {
-            0x28u -> LIGHT
-            0x63u -> DEEP
-            0x00u -> AWAKE
+            0x28u.toUByte() -> LIGHT
+            0x63u.toUByte() -> DEEP
+            0x00u.toUByte() -> AWAKE
             else -> UNKNOWN
         }
     }

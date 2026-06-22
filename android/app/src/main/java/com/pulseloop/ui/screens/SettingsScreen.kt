@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.pulseloop.data.DemoDataSeeder
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.notifications.CoachNotifications
+import com.pulseloop.service.RingSyncWorker
 import com.pulseloop.settings.ApiKeyStore
 import kotlinx.coroutines.launch
 
@@ -354,6 +355,8 @@ fun SettingsScreen(
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
+                                    // Cancel background sync before unpair
+                                    RingSyncWorker.cancel(context)
                                     // Send ring-side unpair commands, then disconnect & clear DB
                                     if (coordinator != null && isConnected) {
                                         coordinator.forgetRing {

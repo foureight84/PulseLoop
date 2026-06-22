@@ -144,6 +144,8 @@ The ring uses a **command-response protocol** — it does not stream data contin
 
 **Key finding:** The ring only responds to commands. Activity data comes from `0x02` queries, sleep from `0x10`, live HR from `0x14` (warm-up ~12s, then ~1 sample/sec), and SpO₂ from `0x23` spot measurements (25-40s window). After the initial connect sync, no new data arrives unless you explicitly sync again. The ring was designed for periodic check-in, not continuous streaming.
 
+**Background sync:** PulseLoop replicates the official app's behavior with a WorkManager periodic task that connects to the ring every 30 minutes, runs the sync sequence, and disconnects. This keeps your data fresh without needing to manually sync.
+
 Full protocol reference with every command ID, payload layout, and data frequency notes: **[docs/ring-protocol.md](docs/ring-protocol.md)**.
 
 > The protocol was reverse-engineered by analyzing BLE traffic between the ring and the official JRing app using an nRF52840 dongle + Wireshark. See [sakshambhutani.xyz/hacking/2_hacking](https://sakshambhutani.xyz/hacking/2_hacking/) for the full write-up, [github.com/saksham2001/Smart-Ring-Protocol](https://github.com/saksham2001/Smart-Ring-Protocol/) for lab notes and a Python CLI.

@@ -97,6 +97,9 @@ fun PulseLoopApp() {
                 bleClient.connectLastKnown()
             }
 
+            // Schedule periodic background sync (matches official app behavior)
+            RingSyncWorker.schedule(context)
+
             // Seed demo data ONLY on first launch with no ring data
             val device = db.deviceDao().current()
             val hasAnyActivity = db.activityDailyDao().recent(1).isNotEmpty()

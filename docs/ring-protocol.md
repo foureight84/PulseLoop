@@ -67,9 +67,18 @@ SpO₂ comes **directly from the ring**, not calculated by the app:
 
 ## Firmware Version
 
-- **Jring (56ff)**: Does NOT expose the standard BLE Device Information Service (`0x180A`). Firmware version cannot be read.
-- **Colmi**: May expose DIS. If available, firmware revision string characteristic (`0x2A26`) is read on connect.
-- Neither ring sends firmware version in its protocol packets.
+- **56ff rings**: Expose Firmware Revision String (`0x2A26`) and Software Revision String (`0x2A28`) on at least one service (not necessarily inside a dedicated DIS block). The official JRing app reports values like `003A002AV138`.
+- **Colmi**: May expose the same characteristics.
+- The app scans all discovered services for both 0x2A26 and 0x2A28 on every connect.
+
+## Background Sync
+
+The official JRing app runs in the background and periodically pulls data from the ring. PulseLoop replicates this via WorkManager:
+- **Interval**: Every 30 minutes (15 min flex window)
+- **Behavior**: Connects to last-known ring, runs startup sync sequence, waits 15s for data, disconnects
+- **Timeout**: 45s per sync attempt with exponential backoff on failure
+- **Constraints**: Battery not low
+- Background sync is canceled when forgetting the ring
 
 ## Sleep Stage Decoding (Experimental)
 

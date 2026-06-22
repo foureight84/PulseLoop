@@ -95,6 +95,15 @@ fun PulseLoopApp() {
             coordinator.start()
             summaryCoordinator.start()
 
+            // Stale-state guard: a persisted "CONNECTED"/"CONNECTING" must not survive a
+            // process restart — the live GATT is gone, so the views would otherwise show a
+            // false "Connected". Reset until a real connection re-confirms it.
+            db.deviceDao().current()?.let { dev ->
+                if (dev.stateRaw == "CONNECTED" || dev.stateRaw == "CONNECTING") {
+                    db.deviceDao().upsert(dev.copy(stateRaw = "DISCONNECTED", updatedAt = System.currentTimeMillis()))
+                }
+            }
+
             // Auto-reconnect to last-known ring if any
             if (bleClient.hasPermissions()) {
                 bleClient.connectLastKnown()

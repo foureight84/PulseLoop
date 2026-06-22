@@ -227,6 +227,11 @@ class RingBLEClient(private val context: Context) {
         val coordinator = coordinators.firstOrNull { it.deviceType == deviceType } ?: JringCoordinator
         installDriver(coordinator)
         updateState { copy(connectionState = RingConnectionState.CONNECTING) }
+        // Mirror the attempt to the persisted state so the Today/Settings views show
+        // "Connecting…" rather than a stale "Connected" while autoConnect is pending.
+        PulseEventBus.publishBlocking(
+            PulseEvent.DeviceStateChanged(RingConnectionState.CONNECTING, target.address)
+        )
 
         bluetoothGatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             // autoConnect=true matches the official app — connects silently

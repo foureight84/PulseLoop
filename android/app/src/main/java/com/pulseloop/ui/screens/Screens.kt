@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -20,6 +21,9 @@ import com.pulseloop.service.HeartRateZones
 import com.pulseloop.ui.components.MetricTile
 import com.pulseloop.ui.components.SimpleLineChart
 import com.pulseloop.ui.viewmodels.*
+import com.pulseloop.settings.ApiKeyStore
+import com.pulseloop.settings.UnitConverter
+import com.pulseloop.settings.UnitSystem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -38,6 +42,7 @@ fun TodayScreen(
     val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(TodayViewModel.TodayState()) })
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
+    val units = ApiKeyStore(LocalContext.current).resolvedUnitSystem
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
         onRefresh = {
@@ -136,8 +141,8 @@ fun TodayScreen(
                 MetricTile(
                     modifier = Modifier.weight(1f),
                     label = "Distance",
-                    value = state.distanceMeters?.let { "%.1f".format(it / 1000) } ?: "--",
-                    unit = "km",
+                    value = state.distanceMeters?.let { "%.1f".format(UnitConverter.distance(it, units)) } ?: "--",
+                    unit = UnitConverter.distanceUnit(units),
                     trend = null,
                 )
                 MetricTile(
@@ -343,9 +348,12 @@ fun VitalsScreen(viewModel: VitalsViewModel? = null) {
                         Spacer(Modifier.height(4.dp))
                         val tempVal = state.latestTemp
                         if (tempVal != null && state.tempSamples.isNotEmpty()) {
+                            val units = com.pulseloop.settings.ApiKeyStore(LocalContext.current).resolvedUnitSystem
+                            val displayTemp = com.pulseloop.settings.UnitConverter.temperature(tempVal, units)
+                            val displayUnit = com.pulseloop.settings.UnitConverter.temperatureUnit(units)
                             Row(verticalAlignment = Alignment.Bottom) {
-                                Text(String.format("%.1f", tempVal), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(" °C", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                                Text(String.format("%.1f", displayTemp), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(" $displayUnit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
                             Spacer(Modifier.height(12.dp))
                             SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043))

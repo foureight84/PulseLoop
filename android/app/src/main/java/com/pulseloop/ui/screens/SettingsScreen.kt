@@ -23,6 +23,7 @@ import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.notifications.CoachNotifications
 import com.pulseloop.service.RingSyncWorker
 import com.pulseloop.settings.ApiKeyStore
+import com.pulseloop.settings.UnitSystem
 import kotlinx.coroutines.launch
 
 /**
@@ -310,6 +311,37 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Units", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                var useImperial by remember { mutableStateOf(keyStore.resolvedUnitSystem == UnitSystem.IMPERIAL) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Use Imperial units")
+                        Text(
+                            if (keyStore.unitSystem == null) "Auto-detected: ${keyStore.resolvedUnitSystem.label}"
+                            else "Manual override",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = useImperial, onCheckedChange = {
+                        useImperial = it
+                        keyStore.unitSystem = if (it) UnitSystem.IMPERIAL.name else UnitSystem.METRIC.name
+                    })
+                }
+                if (keyStore.unitSystem != null) {
+                    TextButton(onClick = {
+                        keyStore.unitSystem = null
+                        useImperial = keyStore.resolvedUnitSystem == UnitSystem.IMPERIAL
+                    }) {
+                        Text("Reset to auto-detect", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

@@ -65,6 +65,25 @@ class ApiKeyStore(context: Context) {
         get() = prefs.getBoolean(KEY_DEMO_SEEDED, false)
         set(value) { prefs.edit().putBoolean(KEY_DEMO_SEEDED, value).apply() }
 
+    /** Unit system: null = auto-detect from locale, "metric" or "imperial" = manual */
+    var unitSystem: String?
+        get() = if (prefs.contains(KEY_UNIT_SYSTEM)) prefs.getString(KEY_UNIT_SYSTEM, null) else null
+        set(value) {
+            if (value != null) prefs.edit().putString(KEY_UNIT_SYSTEM, value).apply()
+            else prefs.edit().remove(KEY_UNIT_SYSTEM).apply()
+        }
+
+    /** Resolved unit system: manual preference or auto-detected from locale */
+    val resolvedUnitSystem: UnitSystem
+        get() {
+            val stored = unitSystem
+            return if (stored != null) {
+                try { UnitSystem.valueOf(stored) } catch (_: Exception) { UnitSystem.fromLocale() }
+            } else {
+                UnitSystem.fromLocale()
+            }
+        }
+
     companion object {
         private const val KEY_API_KEY = "openai_api_key"
         private const val KEY_MODEL = "coach_model"
@@ -77,5 +96,6 @@ class ApiKeyStore(context: Context) {
         private const val KEY_EVENING_HOUR = "evening_hour"
         private const val KEY_ONBOARDING = "onboarding_completed"
         private const val KEY_DEMO_SEEDED = "demo_data_seeded"
+        private const val KEY_UNIT_SYSTEM = "unit_system"
     }
 }

@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
+import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -348,6 +349,25 @@ class RingBLEClient(private val context: Context) {
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
+
+            // Log all discovered service UUIDs for diagnostics
+            val serviceUuids = gatt.services.map { it.uuid.toString() }
+            android.util.Log.i("RingBLEClient", "Services: ${serviceUuids.joinToString(", ")}")
+
+            // Store service list in a log event for export
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val db = com.pulseloop.data.PulseLoopDatabase.getInstance(context.applicationContext)
+                    val device = db.deviceDao().current()
+                    if (device != null) {
+                        db.deviceDao().upsert(device.copy(
+                            capabilitiesRaw = device.capabilitiesRaw + "|services:" + serviceUuids.joinToString(","),
+                            updatedAt = System.currentTimeMillis()
+                        ))
+                    }
+                } catch (_: Exception) {}
+            }
+
             val driver = activeDriver ?: return
 
             // Standard BLE health services — blood pressure (0x1810) + glucose (0x1808)

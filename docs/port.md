@@ -18,6 +18,81 @@
 
 ---
 
+## Porting Gap Analysis
+
+### Data Flow (not wired)
+
+| Component | iOS | Android Status |
+|---|---|---|
+| Ring → BLE → EventBus → DB | `RingBLEClient` → `PulseEventBus` → `EventPersistenceSubscriber` → SwiftData | BLE client + event bus ported. **No subscriber writes events to Room.** |
+| DB → ViewModels → UI | SwiftData `@Query` → `@Observable` ViewModels → SwiftUI | Room DAOs ported. **No ViewModels. Screens use hardcoded strings.** |
+| App startup | `PulseLoopApp.swift`: init BLE, DB, subscriber, auto-connect | **No startup wiring. BLE client created but never auto-connects.** |
+| CoachContextBuilder | Reads real DB: profile, device, goals, trends, data quality | **Not ported. Coach tools return mock JSON.** |
+
+### UI (not implemented or unreachable)
+
+| Screen | iOS File | Android Status |
+|---|---|---|
+| Pairing / ring discovery | `PairingView.swift` | ✅ Added in Phase 8 |
+| Onboarding flow | `RootViews.swift` | ❌ Not ported |
+| Debug / diagnostics | `DebugView.swift` | ❌ Not ported |
+| Workout detail / summary | `RecordViews.swift` | ❌ Not ported (partial in RecordScreen) |
+| Measurement modal | `MeasurementModal.swift` | ❌ Not ported |
+| Settings | `SettingsView.swift` | ✅ Code exists, **no navigation route** |
+| Activity detail drill-down | `ActivityView.swift` | ❌ Not ported |
+
+### Coach Features (code exists, not wired)
+
+| Feature | iOS File | Android Status |
+|---|---|---|
+| CoachContextBuilder | Reads real profile/device/goals/trends from DB | ❌ Mock data only |
+| CoachDataAccess | Queries Room for activity, measurements, sleep | ❌ Not ported |
+| CoachViewModel | `CoachViewModel.swift` — orchestrator + UI state | ❌ Not ported |
+| CoachFallbacks | Graceful degradation when coach fails | ❌ Inline in orchestrator, not a separate module |
+| JSONRepair | Fixes malformed model output | ❌ Basic extraction in CoachResponseParser only |
+| Coach summaries | `CoachSummaryCoordinator`, `CoachSummaryService` | ❌ Not ported |
+| Coach notifications (AI content) | `CoachNotificationGenerator` — LLM-generated check-ins | ⚠️ Static message only, no AI content |
+
+### Persistence Features (DAOs exist, logic missing)
+
+| Feature | iOS File | Android Status |
+|---|---|---|
+| EventPersistenceSubscriber | Listens to bus, writes measurements/sleep/activity to DB | ❌ Not ported |
+| ActivityService | Apply activity updates + bucket summing (idempotent) | ❌ Not ported |
+| MetricsService / DerivedSummaries | Daily trends, 7-day averages, resting HR | ❌ Not ported |
+| SleepInsights | Sleep scoring, stage analysis | ❌ Not ported |
+| Repositories | Typed fetch helpers (DeviceRepository, ActivityRepository) | ⚠️ DAOs exist but no repository wrappers |
+| SeedData | Demo data generation | ✅ Ported (DemoDataSeeder) |
+
+### Workout (managers ported, no UI integration)
+
+| Feature | iOS File | Android Status |
+|---|---|---|
+| LiveWorkoutManager integration | Wired via `@Environment` to RecordLiveView | ❌ Manager exists, no UI binding |
+| Workout detail / summary | `RecordViews.swift` (1079 lines) | ❌ Not ported — RecordScreen is minimal |
+| GPS point persistence | `EventPersistenceSubscriber` persists `ActivityGpsPoint` | ❌ Not ported |
+| Workout recovery | Resume interrupted workout on relaunch | ❌ Not ported |
+
+### Navigation (routes missing)
+
+| Route | iOS | Android |
+|---|---|---|
+| Today (default) | ✅ | ✅ |
+| Vitals | ✅ | ✅ |
+| Sleep | ✅ | ✅ |
+| Activity | ✅ | ✅ |
+| Coach | ✅ | ✅ |
+| Pairing / Scan | `PairingView` | ✅ Added Phase 8 |
+| Settings | `SettingsView` | ❌ No route |
+| Workout recording | `RecordLiveView` | ❌ No route |
+| Workout detail | `RecordDetailView` | ❌ No route |
+| Debug | `DebugView` | ❌ Not ported |
+| Onboarding | Sheet in `RootViews` | ❌ Not ported |
+
+---
+
+## Summary
+
 ## Summary
 
 PulseLoop is ~126 Swift files across 4 architectural layers. The port is **feasible** but requires replacing Apple-specific frameworks at every layer. The core domain logic — ring protocol decoding, coach orchestration, tool system, and data models — is platform-agnostic. The UI, persistence, BLE, and system integration layers need complete rewrites.
@@ -307,6 +382,33 @@ UI (SwiftUI) ─────────────────────┘
 - [x] Add WorkManager + security-crypto dependencies
 - **Committed:** branch `feature/android_phase7` — 5 files
 - **Code review:** (pending)
+
+### Phase 8: Data Flow & Wiring (next)
+- [ ] Create `EventPersistenceSubscriber.kt` — listens to PulseEventBus, writes to Room
+- [ ] Create `ActivityService.kt` — activity updates, bucket summing (idempotent)
+- [ ] Create `MetricsService.kt` — daily trends, 7-day averages, resting HR
+- [ ] Create `CoachDataAccess.kt` — real Room queries for coach tools
+- [ ] Create `CoachContextBuilder.kt` — reads profile/device/goals/trends from Room
+- [ ] Wire BLE → EventBus → Subscriber → Room → ViewModels → UI
+- [ ] Create TodayViewModel, VitalsViewModel, SleepViewModel, ActivityViewModel
+- [ ] Bind Compose screens to ViewModels (replace hardcoded strings)
+- [ ] Wire CoachScreen to CoachViewModel (real chat with orchestrator)
+- [ ] Add Settings navigation route
+- [ ] Add Workout recording navigation route
+- [ ] Wire LiveWorkoutManager to RecordScreen via ViewModel
+- [ ] **Verify:** pair ring → data appears on screens
+
+### Phase 9: Remaining UI & Polish
+- [ ] Create `OnboardingScreen.kt` — first-launch pairing + permissions
+- [ ] Create `DebugScreen.kt` — raw packet trace, DB inspector
+- [ ] Create `WorkoutDetailScreen.kt` — post-workout summary with charts
+- [ ] Add chart composables (line, bar) for Vitals/Sleep screens
+- [ ] Add coach summary generation (periodic background analysis)
+- [ ] Add AI-generated coach notification content
+- [ ] Accessibility: content descriptions, touch targets
+- [ ] Error handling: BLE disconnect recovery UX
+- [ ] Offline mode: cached coach responses
+- [ ] Play Store assets: icon, screenshots, listing copy
 
 ---
 

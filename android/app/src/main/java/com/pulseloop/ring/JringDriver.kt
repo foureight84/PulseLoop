@@ -27,11 +27,13 @@ object JringCoordinator : WearableCoordinator {
         WearableCapability.SLEEP,
         WearableCapability.BATTERY,
         WearableCapability.BLOOD_PRESSURE,
-        WearableCapability.BLOOD_SUGAR,
         WearableCapability.MANUAL_HEART_RATE,
         WearableCapability.MANUAL_SPO2,
         WearableCapability.REALTIME_HEART_RATE,
         WearableCapability.FIND_DEVICE,
+        // Temperature: present in official APK (setTemperatureMode, ACTION_NOTIFY_TEMPERATURE_DATA)
+        // but may be for smartwatch variants sharing the same app. Included experimentally.
+        WearableCapability.TEMPERATURE,
     )
 
     override val iconSystemName = "circle.hexagongrid.circle.fill"
@@ -55,7 +57,7 @@ class JringDriver(private val writer: RingCommandWriter) : WearableDriver {
     override fun frame(command: ByteArray) = command  // jring: already 20 bytes, no checksum
 
     override fun ingest(data: ByteArray, from: String): List<RingDecodedEvent> =
-        listOf(decoder.decode(data))
+        decoder.decode(data)
 
     override fun makeSyncEngine(): RingSyncEngine = JringSyncEngine(writer)
 }
@@ -87,6 +89,12 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
         writer?.enqueue(encoder.makeAutomaticHeartRateCommand(enabled = true, cadenceMinutes = 30))
     }
 
+    /** Spot HR using live HR streaming (0x14), same as workout HR. */
+    override fun measureHeartRateSpot() {
+        writer?.enqueue(encoder.makeHeartRateStartCommand())
+    }
+
+    /** SpO₂-only measurement using 0x3E (not 0x23 — that's combined BP measurement). */
     override fun startSpO2() {
         writer?.enqueue(encoder.makeSpO2StartCommand())
     }
@@ -95,12 +103,33 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
         writer?.enqueue(encoder.makeSpO2StopCommand())
     }
 
+    /** Combined BP + HR + SpO₂ + stress measurement (0x23). */
+    fun startCombinedMeasurement() {
+        writer?.enqueue(encoder.makeCombinedMeasurementStart())
+    }
+
+    fun stopCombinedMeasurement() {
+        writer?.enqueue(encoder.makeCombinedMeasurementStop())
+    }
+
+    /** Temperature mode (0x52). Experimental — may only work on smartwatch variants. */
+    fun startTemperatureMode() {
+        writer?.enqueue(encoder.makeTemperatureModeCommand())
+    }
+
     override fun findDevice() {
         writer?.enqueue(encoder.makeFindRingCommand())
     }
 
     override fun setGoal(steps: Int) {
         writer?.enqueue(encoder.makeGoalCommand(steps))
+    }
+
+    // Keepalive ping (0x3A) — prevents ring's ~20s idle disconnect
+    fun sendKeepalive() {
+        val cmd = ByteArray(20)
+        cmd[0] = 0x3A.toByte()
+        writer?.enqueue(cmd)
     }
 
     // Jring has no power-off or factory-reset capabilities — no-ops

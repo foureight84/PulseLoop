@@ -103,8 +103,8 @@ class ColmiDecoderTest {
         val events = ColmiDecoder.decodeNormal(frame)
         val activity = events.first() as RingDecodedEvent.ActivityUpdate
         assertEquals(500, activity.steps)
-        assertEquals(300.0, activity.distanceMeters, 0.01)
-        assertEquals(123.4, activity.calories, 0.01)
+        assertEquals(300, activity.distanceMeters)
+        assertEquals(123, activity.calories)
     }
 
     // MARK: Big-data

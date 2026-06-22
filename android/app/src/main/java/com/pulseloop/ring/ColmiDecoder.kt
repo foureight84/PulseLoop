@@ -47,8 +47,8 @@ object ColmiDecoder {
         ColmiCommandID.NOTIF_BATTERY -> listOf(RingDecodedEvent.Battery(percent = v[2].toInt()))
         ColmiCommandID.NOTIF_LIVE_ACTIVITY -> {
             val steps = ColmiBytes.u24(v[2], v[3], v[4])
-            val calories = ColmiBytes.u24(v[5], v[6], v[7]).toDouble() / 10.0
-            val distance = ColmiBytes.u24(v[8], v[9], v[10]).toDouble()
+            val calories = ColmiBytes.u24(v[5], v[6], v[7]).toInt() / 10
+            val distance = ColmiBytes.u24(v[8], v[9], v[10]).toInt()
             listOf(RingDecodedEvent.ActivityUpdate(
                 _timestamp = now, steps = steps, distanceMeters = distance, calories = calories
             ))
@@ -142,7 +142,7 @@ object ColmiDecoder {
         if (ts < lower || ts > upper) return emptyList()
 
         val steps = ColmiBytes.u16(v[9], v[10])
-        val distance = ColmiBytes.u16(v[11], v[12]).toDouble()
+        val distance = ColmiBytes.u16(v[11], v[12]).toInt()
         return listOf(RingDecodedEvent.ActivityBucket(
             _timestamp = ts, steps = steps, distanceMeters = distance
         ))

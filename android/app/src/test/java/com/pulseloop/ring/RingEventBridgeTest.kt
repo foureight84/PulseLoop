@@ -20,7 +20,7 @@ class RingEventBridgeTest {
         val bucket = RingDecodedEvent.ActivityBucket(
             _timestamp = now,
             steps = 4500,
-            distanceMeters = 3000.0,
+            distanceMeters = 3000,
         )
         val events = RingEventBridge.eventsFor(bucket, now)
         assertEquals(1, events.size)
@@ -32,7 +32,7 @@ class RingEventBridgeTest {
         val bucket = RingDecodedEvent.ActivityBucket(
             _timestamp = now,
             steps = 6000, // > 5000
-            distanceMeters = 3000.0,
+            distanceMeters = 3000,
         )
         val events = RingEventBridge.eventsFor(bucket, now)
         assertTrue(events.isEmpty())
@@ -43,7 +43,7 @@ class RingEventBridgeTest {
         val bucket = RingDecodedEvent.ActivityBucket(
             _timestamp = now,
             steps = 1000,
-            distanceMeters = 7000.0, // > 6000
+            distanceMeters = 7000, // > 6000
         )
         val events = RingEventBridge.eventsFor(bucket, now)
         assertTrue(events.isEmpty())
@@ -54,7 +54,7 @@ class RingEventBridgeTest {
         val bucket = RingDecodedEvent.ActivityBucket(
             _timestamp = now,
             steps = 5000,
-            distanceMeters = 6000.0,
+            distanceMeters = 6000,
         )
         val events = RingEventBridge.eventsFor(bucket, now)
         assertEquals(1, events.size)
@@ -228,13 +228,18 @@ class RingEventBridgeTest {
     // ── No-Op Events ────────────────────────────────────────────────────
 
     @Test
-    fun `sync progress events are not fanned out`() {
-        assertTrue(RingEventBridge.eventsFor(
+    fun `sync progress events are fanned out to PulseEvent`() {
+        val events1 = RingEventBridge.eventsFor(
             RingDecodedEvent.HistorySyncProgress(stage = "connecting"), now
-        ).isEmpty())
-        assertTrue(RingEventBridge.eventsFor(
+        )
+        assertEquals(1, events1.size)
+        assertTrue(events1[0] is PulseEvent.SyncProgress)
+
+        val events2 = RingEventBridge.eventsFor(
             RingDecodedEvent.HistorySyncFinished, now
-        ).isEmpty())
+        )
+        assertEquals(1, events2.size)
+        assertTrue(events2[0] is PulseEvent.SyncProgress)
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.pulseloop.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,6 +19,11 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.navigation.NavController
 import com.pulseloop.service.HeartRateZones
+import com.pulseloop.service.SleepCoach
+import com.pulseloop.service.SleepFormat
+import com.pulseloop.service.SleepInsights
+import com.pulseloop.service.SleepScore
+import com.pulseloop.service.SleepScoreResult
 import com.pulseloop.ui.components.MetricTile
 import com.pulseloop.ui.components.SimpleLineChart
 import com.pulseloop.ui.viewmodels.*
@@ -476,6 +482,7 @@ fun SleepScreen(
             Spacer(Modifier.height(8.dp))
         }
 
+        // ── Last Night card ─────────────────────────────────────────
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -484,7 +491,7 @@ fun SleepScreen(
                     Text(timeStr, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                     if (lastNight != null) {
                         Text(
-                            "${java.time.Instant.ofEpochMilli(lastNight.startAt).atZone(java.time.ZoneId.systemDefault()).toLocalTime()} – ${java.time.Instant.ofEpochMilli(lastNight.endAt).atZone(java.time.ZoneId.systemDefault()).toLocalTime()}",
+                            "${SleepFormat.clockTime(lastNight.startAt)} – ${SleepFormat.clockTime(lastNight.endAt)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -495,17 +502,50 @@ fun SleepScreen(
             }
         }
 
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Sleep Score", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(4.dp))
-                    val score = lastNight?.totalMinutes?.let { (it / 5).coerceAtMost(100) } ?: 0
-                    Text("$score / 100", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+        // ── Sleep Score card ─────────────────────────────────────────
+        state.score?.let { s: SleepScoreResult ->
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Sleep Score", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("${s.score} / 100", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(s.label.name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            StagePill("Deep", "${s.deepPct}%", Color(0xFF7C4DFF))
+                            StagePill("Light", "${s.lightPct}%", Color(0xFF64B5F6))
+                            if (s.awakePct != null) StagePill("Awake", "${s.awakePct}%", Color(0xFFFF8A65))
+                        }
+                    }
                 }
             }
         }
 
+        // ── Coach insight card ───────────────────────────────────────
+        state.coach?.let { c: SleepCoach ->
+            item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(c.headline, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(c.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (c.chips.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                c.chips.forEach { chip: String ->
+                                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                                        Text(chip, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Recent nights ────────────────────────────────────────────
         if (state.recentSessions.size > 1) {
             item {
                 Text("Recent Nights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -524,6 +564,14 @@ fun SleepScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StagePill(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

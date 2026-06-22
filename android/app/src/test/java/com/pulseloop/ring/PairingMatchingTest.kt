@@ -1,5 +1,6 @@
 package com.pulseloop.ring
 
+import com.pulseloop.ring.WearableCapability.Companion.toCsv
 import org.junit.Assert.*
 import org.junit.Test
 

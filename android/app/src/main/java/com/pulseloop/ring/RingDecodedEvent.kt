@@ -23,10 +23,19 @@ enum class SleepStage {
     LIGHT, DEEP, AWAKE, UNKNOWN, REM;
 
     companion object {
-        fun fromByte(byte: UByte): SleepStage = when (byte) {
-            0x28u.toUByte() -> LIGHT
-            0x63u.toUByte() -> DEEP
-            0x00u.toUByte() -> AWAKE
+        /**
+         * Sleep stage from ring byte. Uses threshold-based mapping matching
+         * the official app (Gadgetbridge KeepFitDeviceSupport):
+         *   >= 80  → DEEP sleep
+         *   >= 1   → LIGHT sleep
+         *   0      → AWAKE
+         * The values 0x28 (40) and 0x63 (99) previously used as exact
+         * matches are just examples — the ring can send any value in range.
+         */
+        fun fromByte(byte: UByte): SleepStage = when {
+            byte >= 0x50u.toUByte() -> DEEP   // >= 80
+            byte >= 0x01u.toUByte() -> LIGHT  // >= 1
+            byte == 0x00u.toUByte() -> AWAKE
             else -> UNKNOWN
         }
     }
@@ -76,31 +85,33 @@ sealed class RingDecodedEvent {
     data class ActivityUpdate(
         val _timestamp: Instant,
         val steps: Int,
-        val distanceMeters: Double,
-        val calories: Double
+        val distanceMeters: Int,
+        val calories: Int
     ) : RingDecodedEvent() {
         override val kind = "activity"
         override val confidence = DecodeConfidence.KNOWN
-        override val debugJSON = """{"steps":$steps,"distance_m":${distanceMeters.toInt()},"calories":${calories.toInt()}}"""
+        override val debugJSON = """{"steps":$steps,"distance_m":$distanceMeters,"calories":$calories}"""
     }
 
     data class ActivityBucket(
         val _timestamp: Instant,
         val steps: Int,
-        val distanceMeters: Double
+        val distanceMeters: Int
     ) : RingDecodedEvent() {
         override val kind = "activity_bucket"
         override val confidence = DecodeConfidence.KNOWN
-        override val debugJSON = """{"steps":$steps,"distance_m":${distanceMeters.toInt()}}"""
+        override val debugJSON = """{"steps":$steps,"distance_m":$distanceMeters}"""
     }
 
     data class HeartRateSample(
         val bpm: Int,
-        val _timestamp: Instant
+        val _timestamp: Instant,
+        val sleepStatus: Int = 0,
+        val isError: Boolean = false
     ) : RingDecodedEvent() {
         override val kind = "hr_sample"
         override val confidence = DecodeConfidence.KNOWN
-        override val debugJSON = """{"bpm":$bpm}"""
+        override val debugJSON = """{"bpm":$bpm,"error":$isError}"""
     }
 
     data class HeartRateComplete(
@@ -198,11 +209,12 @@ sealed class RingDecodedEvent {
     }
 
     data class Battery(
-        val percent: Int
+        val percent: Int,
+        val charging: Boolean = false
     ) : RingDecodedEvent() {
         override val kind = "battery"
         override val confidence = DecodeConfidence.KNOWN
-        override val debugJSON = """{"percent":$percent}"""
+        override val debugJSON = """{"percent":$percent,"charging":$charging}"""
     }
 
     data class Status(

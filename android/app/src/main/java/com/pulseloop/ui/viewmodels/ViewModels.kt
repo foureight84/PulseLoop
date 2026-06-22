@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.entity.*
 import com.pulseloop.ring.*
+import com.pulseloop.service.SleepCoach
+import com.pulseloop.service.SleepInsights
+import com.pulseloop.service.SleepScore
+import com.pulseloop.service.SleepScoreResult
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -110,6 +114,9 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
 class SleepViewModel(db: PulseLoopDatabase) : ViewModel() {
     data class SleepState(
         val lastNight: SleepSessionEntity? = null,
+        val lastNightBlocks: List<SleepStageBlockEntity> = emptyList(),
+        val score: SleepScoreResult? = null,
+        val coach: SleepCoach? = null,
         val recentSessions: List<SleepSessionEntity> = emptyList(),
     )
 
@@ -119,8 +126,19 @@ class SleepViewModel(db: PulseLoopDatabase) : ViewModel() {
     init {
         viewModelScope.launch {
             db.sleepSessionDao().recentFlow(7).collect { sessions ->
+                val last = sessions.firstOrNull()
+                val blocks = if (last != null) db.sleepStageBlockDao().forSession(last.id) else emptyList()
+                val scoreResult = if (last != null) SleepScore.calculate(last, blocks) else null
+                val coachText = if (last != null && scoreResult != null) {
+                    SleepInsights.dayCoach(last, blocks, null)
+                } else if (last == null) {
+                    SleepInsights.dayNoDataCoach
+                } else null
                 _state.update { it.copy(
-                    lastNight = sessions.firstOrNull(),
+                    lastNight = last,
+                    lastNightBlocks = blocks,
+                    score = scoreResult,
+                    coach = coachText,
                     recentSessions = sessions,
                 ) }
             }

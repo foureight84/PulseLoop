@@ -116,6 +116,9 @@ interface SleepStageBlockDao {
 
     @Query("SELECT * FROM sleep_stage_blocks WHERE sessionId = :sessionId AND startAt = :startAt LIMIT 1")
     suspend fun findBlock(sessionId: String, startAt: Long): SleepStageBlockEntity?
+
+    @Query("DELETE FROM sleep_stage_blocks WHERE sessionId = :sessionId")
+    suspend fun deleteBySession(sessionId: String)
 }
 
 @Dao

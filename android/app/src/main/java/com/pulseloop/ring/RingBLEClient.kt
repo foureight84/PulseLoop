@@ -165,11 +165,28 @@ class RingBLEClient(private val context: Context) {
         }
     }
 
+    /**
+     * Graceful disconnect initiated by the user (e.g., navigating away).
+     * Does NOT clear bond or GATT cache — keeps pairing intact for silent reconnect.
+     * With autoConnect=true, Android will automatically reconnect when the ring
+     * comes back in range.
+     */
     fun disconnect() {
         stopKeepalive()
         scanner?.stopScan(scanCallback)
-        // Clear Android's GATT cache and remove OS-level bond so ring
-        // is immediately discoverable after disconnect (no reboot needed)
+        bluetoothGatt?.disconnect()
+        // Do NOT close the GATT or clear bond — let autoConnect handle reconnection.
+        // The official app only closes GATT/clears bond on explicit "Forget Ring".
+        updateState { copy(connectionState = RingConnectionState.DISCONNECTED) }
+    }
+
+    /**
+     * Full teardown — remove bond, close GATT, forget the ring.
+     * Only call this on explicit "Forget Ring" action.
+     */
+    fun forget() {
+        stopKeepalive()
+        scanner?.stopScan(scanCallback)
         bluetoothGatt?.let { gatt ->
             try { gatt::class.java.getMethod("refresh").invoke(gatt) } catch (_: Exception) {}
             try { gatt.device::class.java.getMethod("removeBond").invoke(gatt.device) } catch (_: Exception) {}
@@ -177,13 +194,10 @@ class RingBLEClient(private val context: Context) {
             gatt.close()
         }
         bluetoothGatt = null
-        updateState { copy(connectionState = RingConnectionState.IDLE) }
-    }
-
-    fun forget() {
-        disconnect()
+        writeChar = null; commandChar = null; notifyChars.clear(); batteryChar = null
+        writeInFlight = false; writeQueue.clear()
         prefs.edit().remove(LAST_PERIPHERAL_KEY).remove(LAST_DEVICE_TYPE_KEY).apply()
-        updateState { copy(activeDeviceType = null, activeCapabilities = emptySet()) }
+        updateState { copy(connectionState = RingConnectionState.IDLE, activeDeviceType = null, activeCapabilities = emptySet()) }
     }
 
     fun enqueueWrite(data: ByteArray) {
@@ -224,14 +238,19 @@ class RingBLEClient(private val context: Context) {
         }
     }
 
-    /** Send a keepalive ping every 15s to prevent the ring's idle timeout. */
+    /**
+     * Send a keepalive ping every 15s to prevent the ring's ~20s idle timeout.
+     * Uses 0x3A (CMD_KEEPALIVE_PING) — the official SDK's lightweight ping/pong
+     * command. The ring responds with 0x3A which also triggers setAppId().
+     */
     private fun startKeepalive() {
         keepaliveJob?.cancel()
         keepaliveJob = scope.launch {
             while (isActive) {
                 delay(15_000)
-                // Send status query (0x0C) as keepalive
-                enqueueWrite(RingEncoder.hexToBytes("0c00000000000000000000000000000000000000"))
+                val cmd = ByteArray(20)
+                cmd[0] = 0x3A.toByte()  // CMD_KEEPALIVE_PING
+                enqueueWrite(cmd)
             }
         }
     }
@@ -545,7 +564,6 @@ class RingBLEClient(private val context: Context) {
     }
 
     private fun handleDisconnect(gatt: BluetoothGatt) {
-        writeChar = null; commandChar = null; notifyChars.clear(); batteryChar = null
         writeInFlight = false; writeQueue.clear()
         stopKeepalive()
 
@@ -553,10 +571,10 @@ class RingBLEClient(private val context: Context) {
             PulseEvent.DeviceStateChanged(RingConnectionState.DISCONNECTED, null)
         )
 
-        // autoConnect=true handles reconnection automatically — no need for gatt.connect()
+        // autoConnect=true will automatically reconnect when the ring comes back.
+        // Do NOT close the GATT — that would permanently kill the auto-reconnect.
+        // The official app keeps the GATT alive on passive disconnect.
         updateState { copy(connectionState = RingConnectionState.DISCONNECTED) }
-        gatt.close()
-        bluetoothGatt = null
     }
 
     fun destroy() {

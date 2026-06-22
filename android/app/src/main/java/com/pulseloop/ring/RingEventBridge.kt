@@ -13,15 +13,15 @@ object RingEventBridge {
     private val hrvRange = 1..300
     private val temperatureRange = 30.0..45.0
     private const val maxBucketSteps = 5000
-    private const val maxBucketDistance = 6000.0
+    private const val maxBucketDistance = 6000
 
     fun eventsFor(decoded: RingDecodedEvent, now: Instant = Instant.now()): List<PulseEvent> = when (decoded) {
         is RingDecodedEvent.ActivityUpdate ->
-            listOf(PulseEvent.ActivityUpdate(decoded._timestamp, decoded.steps, decoded.distanceMeters, decoded.calories))
+            listOf(PulseEvent.ActivityUpdate(decoded._timestamp, decoded.steps, decoded.distanceMeters.toDouble(), decoded.calories.toDouble()))
 
         is RingDecodedEvent.ActivityBucket -> {
-            if (decoded.steps !in 0..maxBucketSteps || decoded.distanceMeters !in 0.0..maxBucketDistance) emptyList()
-            else listOf(PulseEvent.ActivityBucket(decoded._timestamp, decoded.steps, decoded.distanceMeters))
+            if (decoded.steps !in 0..maxBucketSteps || decoded.distanceMeters !in 0..maxBucketDistance) emptyList()
+            else listOf(PulseEvent.ActivityBucket(decoded._timestamp, decoded.steps, decoded.distanceMeters.toDouble()))
         }
 
         is RingDecodedEvent.HeartRateSample -> {

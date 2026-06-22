@@ -108,13 +108,13 @@ class CoachActionTest {
 
     @Test
     fun `applyUpdates changes type`() {
-        val session = createTestSession(type = "walk")
+        val session = createTestSession(type = "walk", distanceMeters = 1000.0)
         val updates = ActivityUpdates(type = "run")
         val result = PendingActionExecutor.applyUpdates(updates, session)
         assertEquals("run", result.type)
         // Other fields unchanged
         assertEquals(session.notes, result.notes)
-        assertEquals(session.distanceMeters, result.distanceMeters, 0.01)
+        assertEquals(session.distanceMeters!!, result.distanceMeters!!, 0.01)
     }
 
     @Test
@@ -122,7 +122,7 @@ class CoachActionTest {
         val session = createTestSession(distanceMeters = 1000.0)
         val updates = ActivityUpdates(distanceKm = 5.0)
         val result = PendingActionExecutor.applyUpdates(updates, session)
-        assertEquals(5000.0, result.distanceMeters, 0.01)
+        assertEquals(5000.0, result.distanceMeters!!, 0.01)
     }
 
     @Test

@@ -18,12 +18,41 @@ object RingEncoder {
         return cmd
     }
     fun makeActivityQueryCommand(): ByteArray = hexToBytes("0299b85a00000000000000000000000000000000")
-    fun makeHistoryQueryCommand(): ByteArray = hexToBytes("1000000000000000000000000000000000000000")
+    /**
+     * Request activity + sleep history for the last N days (0x10).
+     * byte[1] = number of days (0-27). The ring sends back 0x10 (steps)
+     * and 0x11 (sleep) notifications as multi-packet streams.
+     * Matches Gadgetbridge's triggerActivityReportByDays().
+     */
+    fun makeHistoryQueryCommand(days: Int = 1): ByteArray {
+        val cmd = ByteArray(20)
+        cmd[0] = 0x10
+        cmd[1] = days.coerceIn(0, 27).toByte()
+        return cmd
+    }
     fun makeHistoryMeasurementQueryCommand(): ByteArray = hexToBytes("1600000000000000000000000000000000000000")
     fun makeHeartRateStartCommand(): ByteArray = hexToBytes("14b4000000000000000000000000000000000000")
     fun makeHeartRateStopCommand(): ByteArray = hexToBytes("1500000000000000000000000000000000000000")
-    fun makeSpO2StartCommand(): ByteArray = hexToBytes("2301000000000000000000000000000000000000")
-    fun makeSpO2StopCommand(): ByteArray = hexToBytes("2300000000000000000000000000000000000000")
+    /**
+     * Start combined measurement (0x23): triggers HR + systolic + diastolic + SpO₂ + stress.
+     * byte[1] = 1 to start, 0 to stop.
+     * Response arrives as 0x24 notification with 5 metrics.
+     */
+    fun makeCombinedMeasurementStart(): ByteArray = hexToBytes("2301000000000000000000000000000000000000")
+    fun makeCombinedMeasurementStop(): ByteArray = hexToBytes("2300000000000000000000000000000000000000")
+
+    /**
+     * SpO₂-only toggle (0x3E). byte[1] = 1 to start, 0 to stop.
+     * Response arrives as 0x3F notification.
+     */
+    fun makeSpO2StartCommand(): ByteArray = hexToBytes("3e01000000000000000000000000000000000000")
+    fun makeSpO2StopCommand(): ByteArray = hexToBytes("3e00000000000000000000000000000000000000")
+
+    /**
+     * Set temperature mode (0x52). The exact payload is uncertain — this sends the
+     * same format the official app uses for setTemperatureMode.
+     */
+    fun makeTemperatureModeCommand(): ByteArray = hexToBytes("5201000000000000000000000000000000000000")
     fun makeFindRingCommand(): ByteArray = hexToBytes("040a000000000000000000000000000000000000")
 
     /**

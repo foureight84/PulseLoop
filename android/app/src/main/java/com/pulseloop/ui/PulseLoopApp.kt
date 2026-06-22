@@ -81,7 +81,10 @@ fun PulseLoopApp() {
             bleClient.onFirmwareRead = { fw ->
                 kotlinx.coroutines.runBlocking {
                     val dev = db.deviceDao().current()
-                    if (dev != null) {
+                    // Standard DIS (2A26/2A28) firmware is only a fallback. The official app
+                    // displays the custom-protocol device-info version ("…V138"), not the DIS
+                    // string, so never overwrite a value that already carries the "V" version.
+                    if (dev != null && (dev.firmwareVersion.isNullOrBlank() || !dev.firmwareVersion!!.contains("V"))) {
                         db.deviceDao().upsert(dev.copy(firmwareVersion = fw, updatedAt = System.currentTimeMillis()))
                     }
                 }

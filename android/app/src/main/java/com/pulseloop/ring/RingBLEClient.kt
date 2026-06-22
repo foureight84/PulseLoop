@@ -347,12 +347,18 @@ class RingBLEClient(private val context: Context) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         bluetoothGatt = gatt
-                        // Only trigger bonding if not already bonded.
-                        // On reconnect (e.g. after phone idle/sleep), the bond
-                        // persists — no need to show the pairing dialog again.
-                        if (gatt.device.bondState != BluetoothDevice.BOND_BONDED) {
-                            try { gatt.device.createBond() } catch (_: Exception) {}
-                        }
+                        // Do NOT create an OS-level bond. The 56ff protocol is unencrypted
+                        // (verified in the official SDK's SampleGattAttributes — no auth on
+                        // 33f3/33f4), so bonding is not required to read/write characteristics.
+                        // We intentionally skip it because bonding:
+                        //   (a) makes the OS treat the ring as a connected BT device, which is
+                        //       what lights up the phone's status-bar Bluetooth icon, and
+                        //   (b) previously ran here racing requestMtu()/discoverServices(),
+                        //       a known Android instability that caused the frequent disconnects.
+                        // The link is kept alive by autoConnect=true + the 0x3A keepalive.
+                        // Request a high-priority connection interval, matching the official app
+                        // (BluetoothLeService.requestConnectionPriority(1) on connect).
+                        gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                         gatt.requestMtu(512)
                         gatt.discoverServices()
                     } else {

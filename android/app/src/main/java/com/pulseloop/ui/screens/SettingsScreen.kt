@@ -369,9 +369,12 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                // Firmware version
+                // Firmware version — show just the trailing version (e.g. "V138"), matching
+                // the official app, which displays only the last segment of "003A002AV138".
                 if (device.value?.firmwareVersion != null) {
-                    Text("Firmware: ${device.value!!.firmwareVersion}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                    val rawFw = device.value!!.firmwareVersion!!
+                    val fwDisplay = if (rawFw.contains("V")) "V" + rawFw.substringAfterLast("V") else rawFw
+                    Text("Firmware: $fwDisplay", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
                 } else if (device.value != null) {
                     Text("Firmware: reading… (connect ring to read)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
                 }

@@ -24,6 +24,29 @@ class EventPersistenceSubscriber(
 
     fun stop() { job?.cancel(); job = null }
 
+    /**
+     * Compose the firmware string the way the official Jring app does in
+     * onGetDeviceInfo(): `<cid><did>V<version>` e.g. "003A002AV138" — where the
+     * hex prefix comes from the 0x0C device-info packet and the version from 0xF6.
+     *
+     * These two pieces arrive in separate BLE notifications in either order, so this
+     * merges a new piece into whatever is already stored without dropping the other.
+     * A non-hex string already present (e.g. a DIS 2A26 fallback) is treated as empty
+     * so it can't corrupt the prefix. The Settings screen renders only the trailing
+     * "V<version>" portion, matching the official app's `substring(len-4)` display.
+     */
+    private fun composeFirmware(existing: String?, hex: String? = null, version: Int? = null): String {
+        fun looksHex(s: String) = s.isNotEmpty() && s.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+        val existingHex = existing?.substringBefore("V", "")?.takeIf { looksHex(it) }
+        val existingVer = existing?.substringAfter("V", "")?.takeIf { it.isNotEmpty() }
+        val finalHex = hex ?: existingHex
+        val finalVer = version?.toString() ?: existingVer
+        return buildString {
+            finalHex?.let { append(it) }
+            finalVer?.let { append("V").append(it) }
+        }
+    }
+
     private suspend fun persist(event: PulseEvent) {
         when (event) {
             is PulseEvent.DeviceStateChanged -> {
@@ -45,7 +68,9 @@ class EventPersistenceSubscriber(
                 db.deviceDao().upsert(device.copy(
                     stateRaw = state,
                     bleAddressHint = event.address ?: device.bleAddressHint,
-                    firmwareVersion = event.firmware ?: device.firmwareVersion,
+                    firmwareVersion = if (event.firmware != null)
+                        composeFirmware(device.firmwareVersion, hex = event.firmware)
+                    else device.firmwareVersion,
                     lastConnectedAt = if (state == "CONNECTED") System.currentTimeMillis() else device.lastConnectedAt,
                     updatedAt = System.currentTimeMillis(),
                 ))
@@ -136,9 +161,9 @@ class EventPersistenceSubscriber(
             is PulseEvent.FirmwareVersion -> {
                 val device = db.deviceDao().current()
                 if (device != null && event.version != null) {
-                    // Combine with existing firmware hex to produce "003A002AV138"
-                    val base = device.firmwareVersion ?: ""
-                    val combined = if (base.isNotEmpty()) "${base}V${event.version}" else "V${event.version}"
+                    // Merge the 0xF6 version into the stored string, order-independently,
+                    // yielding the official app's "<hex>V<version>" form (e.g. "003A002AV138").
+                    val combined = composeFirmware(device.firmwareVersion, version = event.version)
                     db.deviceDao().upsert(device.copy(firmwareVersion = combined, updatedAt = System.currentTimeMillis()))
                 }
             }

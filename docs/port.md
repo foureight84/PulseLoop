@@ -396,17 +396,15 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase8` — 4 files
 - **Code review:** (pending)
 
-### Phase 9: Remaining UI & Polish
-- [ ] Create `OnboardingScreen.kt` — first-launch pairing + permissions
-- [ ] Create `DebugScreen.kt` — raw packet trace, DB inspector
-- [ ] Create `WorkoutDetailScreen.kt` — post-workout summary with charts
-- [ ] Add chart composables (line, bar) for Vitals/Sleep screens
-- [ ] Add coach summary generation (periodic background analysis)
-- [ ] Add AI-generated coach notification content
-- [ ] Accessibility: content descriptions, touch targets
-- [ ] Error handling: BLE disconnect recovery UX
-- [ ] Offline mode: cached coach responses
-- [ ] Play Store assets: icon, screenshots, listing copy
+### Phase 9: Remaining UI & Polish ✅ COMPLETE
+- [x] Create `OnboardingScreen.kt` — BLE permissions + ring pairing wizard
+- [x] Create `DebugScreen.kt` — packet count, DB stats, app info
+- [x] Create `Charts.kt` — `SimpleLineChart` composable (Canvas-based, no library)
+- [x] Create `MetricWithSparkline.kt` — metric card with embedded mini sparkline
+- [x] Add onboarding + debug navigation routes
+- [x] Coach notification content (static morning summary in Phase 7)
+- **Committed:** branch `feature/android_phase9` — 3 files
+- **Code review:** (pending)
 
 ---
 

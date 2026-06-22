@@ -53,6 +53,7 @@ abstract class PulseLoopDatabase : RoomDatabase() {
     abstract fun userGoalDao(): UserGoalDao
     abstract fun coachSummaryDao(): CoachSummaryDao
     abstract fun wearableLogDao(): WearableLogDao
+    abstract fun rawPacketDao(): RawPacketDao
 
     companion object {
         @Volatile private var INSTANCE: PulseLoopDatabase? = null

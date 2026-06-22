@@ -58,21 +58,17 @@ object DiagnosticsExporter {
             }
 
             // Raw BLE packets for protocol debugging
-            val sqlQuery = androidx.sqlite.db.SimpleSQLiteQuery(
-                "SELECT * FROM raw_packets ORDER BY timestamp DESC LIMIT 200"
-            )
-            val cursor = db.openHelper.readableDatabase.query(sqlQuery)
+            val packets = db.rawPacketDao().recent(200)
             putJsonArray("rawPackets") {
-                while (cursor.moveToNext()) {
+                packets.forEach { pkt ->
                     addJsonObject {
-                        put("at", Instant.ofEpochMilli(cursor.getLong(cursor.getColumnIndexOrThrow("timestamp"))).toString())
-                        put("direction", cursor.getString(cursor.getColumnIndexOrThrow("directionRaw")))
-                        put("hex", cursor.getString(cursor.getColumnIndexOrThrow("hexPayload")))
-                        put("decoded", cursor.getString(cursor.getColumnIndexOrThrow("decodedKind")) ?: "")
+                        put("at", Instant.ofEpochMilli(pkt.timestamp).toString())
+                        put("direction", pkt.directionRaw)
+                        put("hex", pkt.hexPayload)
+                        put("decoded", pkt.decodedKind ?: "")
                     }
                 }
             }
-            cursor.close()
         }
         return json.encodeToString(JsonObject.serializer(), root)
     }

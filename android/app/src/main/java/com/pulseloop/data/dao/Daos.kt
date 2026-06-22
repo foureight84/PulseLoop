@@ -200,6 +200,15 @@ interface WearableLogDao {
 }
 
 @Dao
+interface RawPacketDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(packet: RawPacketEntity)
+
+    @Query("SELECT * FROM raw_packets ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 500): List<RawPacketEntity>
+}
+
+@Dao
 interface CoachSummaryDao {
     @Query("SELECT * FROM coach_summaries WHERE kind = :kind AND scopeKey = :scopeKey LIMIT 1")
     suspend fun get(kind: String, scopeKey: String): CoachSummaryEntity?

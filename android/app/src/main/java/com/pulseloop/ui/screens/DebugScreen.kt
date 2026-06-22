@@ -86,6 +86,38 @@ fun DebugScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
+                        // Force command buttons — prove command-response behavior
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        val coordinator = com.pulseloop.service.RingSyncCoordinator(
+                                            com.pulseloop.ring.RingBLEClient(context), PulseLoopDatabase.getInstance(context)
+                                        )
+                                        coordinator.syncNow()
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            ) {
+                                Text("Sync Now", style = MaterialTheme.typography.labelSmall)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    val db = PulseLoopDatabase.getInstance(context)
+                                    val bleClient = com.pulseloop.ring.RingBLEClient(context)
+                                    scope.launch {
+                                        if (bleClient.hasPermissions()) {
+                                            bleClient.connectLastKnown()
+                                            kotlinx.coroutines.delay(8000)
+                                            bleClient.disconnect()
+                                        }
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            ) {
+                                Text("Connect + Query", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                         if (liveEvents.isEmpty()) {
                             Text("No events yet. Sync the ring or trigger a measurement to see data.",
                                 style = MaterialTheme.typography.bodySmall,

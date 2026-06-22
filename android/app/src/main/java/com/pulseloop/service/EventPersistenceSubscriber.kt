@@ -189,37 +189,42 @@ class EventPersistenceSubscriber(
     }
 
     private suspend fun upsertSleepSession(ts: Long, stages: List<SleepStage>) {
+        if (stages.isEmpty()) return
         val dayStart = java.time.Instant.ofEpochMilli(ts).truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochMilli()
         val sessionId = "sleep-$dayStart"
 
-        // Persist individual stage blocks for hypnogram rendering
-        val blocks = buildStageBlocks(sessionId, ts, stages)
-        db.sleepStageBlockDao().deleteBySession(sessionId)
-        blocks.forEach { db.sleepStageBlockDao().insert(it) }
+        // The ring streams a night as many 15-minute 0x11 packets that must be STITCHED,
+        // not overwritten. Accumulate this packet's blocks with those already stored for the
+        // night, de-duplicating by absolute start time so re-syncs don't double-count.
+        // Matches the iOS reference (PulseEventBus.persistSleepTimeline).
+        val byStart = LinkedHashMap<Long, SleepStageBlockEntity>()
+        for (b in db.sleepStageBlockDao().forSession(sessionId)) byStart[b.startAt] = b
+        for (b in buildStageBlocks(sessionId, ts, stages)) byStart.putIfAbsent(b.startAt, b)
 
-        val existing = db.sleepSessionDao().byDay(dayStart)
-        val totalMin = stages.size
-        val deepMin = stages.count { it == SleepStage.DEEP }
-        val lightMin = stages.count { it == SleepStage.LIGHT }
+        val merged = byStart.values.sortedBy { it.startAt }
+        val sessionStart = merged.first().startAt
+        val sessionEnd = merged.maxOf { it.startAt + it.durationMinutes * 60_000L }
+        val totalMin = ((sessionEnd - sessionStart) / 60_000L).toInt().coerceAtLeast(0)
+        val deepMin = merged.filter { it.stageRaw == SleepStage.DEEP.name }.sumOf { it.durationMinutes }
         val score = computeSleepScore(deepMin, totalMin)
 
-        if (existing != null) {
-            db.sleepSessionDao().upsert(existing.copy(
-                endAt = maxOf(existing.endAt, ts + totalMin * 60_000L),
-                totalMinutes = maxOf(existing.totalMinutes, totalMin),
-                score = score,
-                updatedAt = System.currentTimeMillis(),
-            ))
-        } else {
-            db.sleepSessionDao().upsert(SleepSessionEntity(
-                id = sessionId,
-                date = dayStart,
-                startAt = ts,
-                endAt = ts + totalMin * 60_000L,
+        // Rewrite the full accumulated set with start minutes relative to the night start.
+        db.sleepStageBlockDao().deleteBySession(sessionId)
+        merged.forEach {
+            db.sleepStageBlockDao().insert(it.copy(startMinute = ((it.startAt - sessionStart) / 60_000L).toInt()))
+        }
+
+        val existing = db.sleepSessionDao().byDay(dayStart)
+        db.sleepSessionDao().upsert(
+            (existing ?: SleepSessionEntity(id = sessionId, date = dayStart, startAt = sessionStart, endAt = sessionEnd, totalMinutes = totalMin, score = score)).copy(
+                startAt = sessionStart,
+                endAt = sessionEnd,
                 totalMinutes = totalMin,
                 score = score,
-            ))
-        }
+                syncedAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
     }
 
     /**

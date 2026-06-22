@@ -208,17 +208,24 @@ Carousel model picker.
 
 ## Implementation Plan
 
-### Phase 12: Coach Summary Pipeline ⭐ Recommended
+### Phase 12: Coach Summary Pipeline ✅ COMPLETE
 **Impact:** High — completes the coach feature set. Background summaries auto-generate recaps from ring data.
 
-**Files to create (5):**
-1. `CoachSummaryService.kt` — orchestrator with rate-limiting + signature check
-2. `CoachSummaryContextBuilder.kt` — builds summary context from Room
-3. `CoachSummaryCoordinator.kt` — event bus subscriber, debounced triggering
-4. `CoachSummaryContent.kt` — structured summary model
-5. `CoachSummaryPromptBuilder.kt` — prompts for daily/sleep recaps
+**Files created (6):**
+1. ✅ `CoachSummaryService.kt` — orchestrator with rate-limiting + signature check
+2. ✅ `CoachSummaryContextBuilder.kt` — builds summary context from Room
+3. ✅ `CoachSummaryCoordinator.kt` — event bus subscriber, debounced triggering
+4. ✅ `CoachSummaryContent.kt` — structured summary model
+5. ✅ `CoachSummaryPromptBuilder.kt` — prompts for daily/sleep recaps
+6. ✅ `CoachSummaryGenerator.kt` — single-shot OpenAI call with fallback
 
-**Estimated:** ~500 lines, 5 files
+**Files updated (4):**
+- CoachSummaryEntity added to SleepCoachEntities.kt
+- CoachSummaryDao added to Daos.kt
+- PulseLoopDatabase updated (v2) with new entity + DAO
+- PulseLoopApp.kt wired summaryCoordinator.start()
+
+**Committed:** 10 files, 562 lines
 
 ### Phase 13: Pending Actions (Safe Writes) ⭐ Recommended
 **Impact:** High — completes the write-tool safety gate. Coach can propose mutations but only executes on user confirmation.
@@ -298,7 +305,7 @@ Carousel model picker.
 
 | Phase | Files | Lines | Impact | Priority |
 |---|---|---|---|---|
-| 12 — Coach Summaries | 5 | ~500 | High | ⭐⭐ |
+| 12 — Coach Summaries | 10 | 562 | High | ✅ COMPLETE |
 | 13 — Pending Actions | 3 | ~200 | High | ⭐⭐ |
 | 14 — Settings UI | 1 | ~150 | Medium | ⭐ |
 | 15 — Vitals Charts | 2 | ~200 | Med-High | ⭐⭐ |

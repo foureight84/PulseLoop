@@ -171,3 +171,21 @@ interface UserGoalDao {
     @Upsert
     suspend fun upsert(goal: UserGoalEntity)
 }
+
+@Dao
+interface CoachSummaryDao {
+    @Query("SELECT * FROM coach_summaries WHERE kind = :kind AND scopeKey = :scopeKey LIMIT 1")
+    suspend fun get(kind: String, scopeKey: String): CoachSummaryEntity?
+
+    @Query("SELECT * FROM coach_summaries WHERE kind = :kind ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun latest(kind: String): CoachSummaryEntity?
+
+    @Query("SELECT * FROM coach_summaries WHERE kind = :kind AND scopeKey = :scopeKey LIMIT 1")
+    fun getFlow(kind: String, scopeKey: String): Flow<CoachSummaryEntity?>
+
+    @Upsert
+    suspend fun upsert(summary: CoachSummaryEntity)
+
+    @Query("DELETE FROM coach_summaries WHERE kind = :kind AND scopeKey = :scopeKey")
+    suspend fun delete(kind: String, scopeKey: String)
+}

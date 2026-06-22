@@ -174,3 +174,21 @@ data class DerivedUpdateEntity(
     val entityId: String,
     val payloadJSON: String? = null,
 )
+
+/**
+ * Ported from [CoachSummary] in CoachSummary.swift.
+ * A persisted, LLM-generated coach card shown on Today/Sleep.
+ */
+@Entity(tableName = "coach_summaries", indices = [Index("kind"), Index("scopeKey")])
+data class CoachSummaryEntity(
+    @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
+    val kind: String,               // "today" | "sleep_day" | "sleep_range_day" | ...
+    val scopeKey: String,           // "2026-06-21" | "day" | ...
+    val title: String,
+    val body: String,
+    val chipsJSON: String? = null,  // JSON array of follow-up chips
+    val conversationId: String? = null,
+    val dataSignature: String,      // hash of input data to detect staleness
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+)

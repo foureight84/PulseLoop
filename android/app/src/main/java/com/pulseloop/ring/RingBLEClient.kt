@@ -327,12 +327,17 @@ class RingBLEClient(private val context: Context) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
             val driver = activeDriver ?: return
 
-            // Read firmware from Device Information Service
+            // Read firmware: scan ALL services for 0x2A26/0x2A28.
+            // The 56ff ring exposes these even without advertising 0x180A DIS.
+            val fwUuid = java.util.UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
+            val swUuid = java.util.UUID.fromString("00002a28-0000-1000-8000-00805f9b34fb")
+            var fwRead = false
             for (service in gatt.services) {
                 if (service.uuid == DIS_SERVICE_UUID) {
-                    val fwChar = service.getCharacteristic(FW_REV_UUID)
-                    if (fwChar != null) gatt.readCharacteristic(fwChar)
+                    service.getCharacteristic(FW_REV_UUID)?.let { gatt.readCharacteristic(it); fwRead = true }
                 }
+                service.getCharacteristic(fwUuid)?.let { gatt.readCharacteristic(it); fwRead = true }
+                service.getCharacteristic(swUuid)?.let { gatt.readCharacteristic(it) }
             }
 
             for (service in gatt.services) {
@@ -374,7 +379,9 @@ class RingBLEClient(private val context: Context) {
                     updateState { copy(batteryPercent = pct) }
                     PulseEventBus.publishBlocking(PulseEvent.BatteryLevel(pct))
                 }
-            } else if (characteristic.uuid == FW_REV_UUID) {
+            } else if (characteristic.uuid == FW_REV_UUID ||
+                       characteristic.uuid.toString().startsWith("00002a26") ||
+                       characteristic.uuid.toString().startsWith("00002a28")) {
                 val fw = characteristic.value?.let { String(it) }?.trim()
                 if (fw != null && fw.isNotEmpty()) {
                     updateState { copy(firmwareVersion = fw) }

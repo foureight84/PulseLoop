@@ -340,7 +340,7 @@ fun SettingsScreen(
                 if (device.value?.firmwareVersion != null) {
                     Text("Firmware: ${device.value!!.firmwareVersion}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
                 } else if (device.value != null) {
-                    Text("Firmware: not available (Jring 56ff does not expose Device Information Service)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                    Text("Firmware: reading… (connect ring to read)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
                 }
                 if (device.value != null) {
                     Spacer(Modifier.height(8.dp))

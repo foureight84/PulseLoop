@@ -14,6 +14,8 @@ enum class WearableCapability(val key: String) {
     STEPS("steps"),
     SLEEP("sleep"),
     BATTERY("battery"),
+    BLOOD_PRESSURE("bloodPressure"),
+    BLOOD_SUGAR("bloodSugar"),
 
     // Colmi R02: richer metrics jring lacks
     REM_SLEEP("remSleep"),

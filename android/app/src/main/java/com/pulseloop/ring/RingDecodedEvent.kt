@@ -10,7 +10,10 @@ enum class MeasurementKind(val key: String, val unit: String) {
     SPO2("spo2", "%"),
     STRESS("stress", ""),
     HRV("hrv", "ms"),
-    TEMPERATURE("temp", "°C");
+    TEMPERATURE("temp", "°C"),
+    BLOOD_PRESSURE_SYSTOLIC("bp_sys", "mmHg"),
+    BLOOD_PRESSURE_DIASTOLIC("bp_dia", "mmHg"),
+    BLOOD_SUGAR("glucose", "mg/dL");
 }
 
 /**

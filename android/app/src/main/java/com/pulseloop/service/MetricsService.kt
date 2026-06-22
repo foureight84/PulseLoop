@@ -106,6 +106,8 @@ object MetricsService {
             MeasurementKind.STRESS -> caps.contains(WearableCapability.STRESS)
             MeasurementKind.HRV -> caps.contains(WearableCapability.HRV)
             MeasurementKind.TEMPERATURE -> caps.contains(WearableCapability.TEMPERATURE)
+            MeasurementKind.BLOOD_PRESSURE_SYSTOLIC, MeasurementKind.BLOOD_PRESSURE_DIASTOLIC -> caps.contains(WearableCapability.BLOOD_PRESSURE)
+            MeasurementKind.BLOOD_SUGAR -> caps.contains(WearableCapability.BLOOD_SUGAR)
         }
     }
 
@@ -118,12 +120,18 @@ object MetricsService {
             MeasurementKind.STRESS -> (20..70).random().toDouble()
             MeasurementKind.HRV -> (30..90).random().toDouble()
             MeasurementKind.TEMPERATURE -> (330..360).random() / 10.0
+            MeasurementKind.BLOOD_PRESSURE_SYSTOLIC -> (110..130).random().toDouble()
+            MeasurementKind.BLOOD_PRESSURE_DIASTOLIC -> (70..85).random().toDouble()
+            MeasurementKind.BLOOD_SUGAR -> (80..140).random().toDouble()
         }
         val unit = when (kind) {
             MeasurementKind.HEART_RATE -> "bpm"
             MeasurementKind.SPO2 -> "%"
             MeasurementKind.HRV -> "ms"
             MeasurementKind.TEMPERATURE -> "°C"
+            MeasurementKind.BLOOD_PRESSURE_SYSTOLIC -> "mmHg"
+            MeasurementKind.BLOOD_PRESSURE_DIASTOLIC -> "mmHg"
+            MeasurementKind.BLOOD_SUGAR -> "mg/dL"
             else -> ""
         }
         val m = MeasurementEntity(

@@ -31,6 +31,7 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
         val isConnected: Boolean = false,
         val sleepMinutes: Int? = null,
         val sleepScore: Int? = null,
+        val lastUpdated: Long = 0L,
     )
 
     private val _state = MutableStateFlow(TodayState())
@@ -56,20 +57,24 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
                 ) }
             }
         }
-        // Reactive HR — poll latest every 2 seconds so live ring readings appear
+        // Reactive HR — poll latest every 2s, resilient to DB errors
         viewModelScope.launch {
             while (true) {
-                val hr = db.measurementDao().latest(MeasurementKind.HEART_RATE.name)
-                _state.update { it.copy(heartRate = hr?.toInt()) }
+                try {
+                    val hr = db.measurementDao().latest(MeasurementKind.HEART_RATE.name)
+                    _state.update { it.copy(heartRate = hr?.toInt(), lastUpdated = System.currentTimeMillis()) }
+                } catch (_: Exception) {}
                 kotlinx.coroutines.delay(2000)
             }
         }
-        // Reactive SpO2 — poll latest every 3 seconds
+        // Reactive SpO2 — poll latest every 2s
         viewModelScope.launch {
             while (true) {
-                val spo2 = db.measurementDao().latest(MeasurementKind.SPO2.name)
-                _state.update { it.copy(spo2 = spo2?.toInt()) }
-                kotlinx.coroutines.delay(3000)
+                try {
+                    val spo2 = db.measurementDao().latest(MeasurementKind.SPO2.name)
+                    _state.update { it.copy(spo2 = spo2?.toInt(), lastUpdated = System.currentTimeMillis()) }
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(2000)
             }
         }
     }
@@ -154,7 +159,7 @@ class VitalsViewModel(db: PulseLoopDatabase) : ViewModel() {
         // Poll every 5 seconds so data appears as the ring syncs history
         viewModelScope.launch {
             while (true) {
-                refresh(db)
+                try { refresh(db) } catch (_: Exception) {}
                 kotlinx.coroutines.delay(5000)
             }
         }

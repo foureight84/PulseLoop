@@ -90,6 +90,16 @@ fun TodayScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = if (state.isConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        // Last data refresh indicator
+                        if (state.lastUpdated > 0) {
+                            val secondsAgo = (System.currentTimeMillis() - state.lastUpdated) / 1000
+                            Text(
+                                if (secondsAgo < 5) "just now" else "${secondsAgo}s ago",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
                     }
                 }
                 Row {

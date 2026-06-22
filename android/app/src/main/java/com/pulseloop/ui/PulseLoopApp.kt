@@ -161,7 +161,7 @@ fun PulseLoopApp() {
                 composable("sleep") { SleepScreen(navController = navController, viewModel = sleepVM) }
                 composable("activity") { ActivityScreen(navController = navController, viewModel = activityVM) }
                 composable("coach") { CoachScreen(navController = navController, viewModel = coachVM) }
-                composable("settings") { SettingsScreen(bleClient, coordinator) }
+                composable("settings") { SettingsScreen(navController, bleClient, coordinator) }
                 composable("debug") { DebugScreen(onBack = { navController.popBackStack() }) }
                 composable("onboarding") { OnboardingScreen(onComplete = { navController.navigate("pairing") }) }
                 composable("record") {

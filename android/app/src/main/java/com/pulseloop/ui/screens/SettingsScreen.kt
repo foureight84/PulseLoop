@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun SettingsScreen(
+    navController: androidx.navigation.NavController? = null,
     bleClient: com.pulseloop.ring.RingBLEClient? = null,
     coordinator: com.pulseloop.service.RingSyncCoordinator? = null,
 ) {
@@ -402,6 +403,25 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Reseed Demo Data")
+                }
+            }
+        }
+
+        // Developer
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Developer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                Text("View raw ring data, BLE packets, database stats, and export diagnostics.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { navController?.navigate("debug") },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.BugReport, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open Debug View")
                 }
             }
         }

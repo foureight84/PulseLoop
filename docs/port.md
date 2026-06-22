@@ -708,3 +708,57 @@ git checkout -b feature/android_phase10
 - **Remote**: `git@github.com:foureight84/PulseLoop.git`
 - **Branch**: `feature/android` (all 9 phases merged)
 - **Upstream**: `saksham2001/PulseLoopIOS.git` (original iOS)
+
+---
+
+## Phase Implementation Methodology
+
+Each phase followed this exact sequence:
+
+### Pre-phase
+1. `git checkout feature/android && git checkout -b feature/android_phaseN`
+2. Read the relevant iOS source files with `read` tool to understand the logic
+3. Use `graphify` queries to trace dependencies and community boundaries
+
+### Implementation
+4. **Add Gradle dependencies** first (`android/app/build.gradle.kts`)
+5. **Create directory structure** with `mkdir -p`
+6. **Port iOS Swift → Android Kotlin** file-by-file:
+   - Map Apple APIs to Android equivalents (e.g., `CoreBluetooth` → `android.bluetooth.le`)
+   - Map Swift patterns to Kotlin idioms (`enum` → `sealed class`/`enum class`, `protocol` → `interface`)
+   - Preserve byte-level protocol logic exactly (arithmetic, bit shifting, checksums)
+   - Preserve business logic (state machines, tool dispatching, polling intervals)
+7. **Create Android-specific files** where no direct port exists (e.g., `AndroidManifest.xml`, `WorkoutForegroundService.kt` for Live Activity)
+
+### Post-implementation
+8. `git add -A && git commit -m "feat(android): Phase N - description"`
+9. Run `graphify update .` to analyze the new code into the knowledge graph
+10. **Senior code review**: inspect diffs for:
+    - API compatibility (minSdk 26 implications)
+    - Null safety (Kotlin null-safety vs Swift optionals)
+    - Thread safety (MainActor → Dispatchers.Main)
+    - Import correctness (no wrong-package references)
+    - Deprecation handling
+11. `git commit -m "fix(android): code review - specific fixes"` (amend if caught early)
+12. `git push origin feature/android_phaseN`
+13. `git checkout feature/android && git merge feature/android_phaseN --no-ff`
+14. `git push origin feature/android`
+15. Update `docs/port.md` phase checklist (mark ✅ COMPLETE, add file counts)
+16. `graphify update .` if not done in step 9
+17. **Start new session** before next phase (clear context)
+
+### Commit Convention
+- Feature commits: `feat(android): Phase N - Description`
+- Fix commits: `fix(android): code review - specific issue`
+- Doc commits: `docs: description`
+- Merge commits: `Merge Phase N: Description (--no-ff)`
+
+### Branch Convention
+- Integration branch: `feature/android`
+- Phase branches: `feature/android_phase1` through `feature/android_phase9`
+- All merges use `--no-ff` to preserve phase boundaries in history
+
+### Graphify Convention
+- Run after every completed phase (Step 9 or Step 16)
+- Uses `detect_incremental()` for code-only changes (no LLM needed)
+- Final graph: 3258 nodes, 6589 edges, 181 communities

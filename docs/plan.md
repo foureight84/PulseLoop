@@ -227,17 +227,18 @@ Carousel model picker.
 
 **Committed:** 10 files, 562 lines
 
-### Phase 13: Pending Actions (Safe Writes) ⭐ Recommended
+### Phase 13: Pending Actions (Safe Writes) ✅ COMPLETE
 **Impact:** High — completes the write-tool safety gate. Coach can propose mutations but only executes on user confirmation.
 
-**Files to create (2):**
-1. `PendingAction.kt` — action model + serialization
-2. `PendingActionExecutor.kt` — execute pending actions against Room
+**Files created (2):**
+1. ✅ `PendingAction.kt` — action model + serialization
+2. ✅ `PendingActionExecutor.kt` — execute confirmed actions against Room
 
-**Files to update (1):**
-3. `ToolImplementations.kt` — wire set_goal/delete_activity_session/update_activity_session through pending mechanism
+**Files updated (2):**
+3. ✅ `ToolImplementations.kt` — added 5 write tools with confirmation gates
+4. ✅ `CoachTool.kt` — added pendingActions list to ToolExecutionContext
 
-**Estimated:** ~200 lines, 3 files
+**Committed:** 4 files, 344 lines
 
 ### Phase 14: Coach Settings UI Enhancement
 **Impact:** Medium — improves Settings with model picker, provider mode, notification toggle, memory list.
@@ -306,7 +307,7 @@ Carousel model picker.
 | Phase | Files | Lines | Impact | Priority |
 |---|---|---|---|---|
 | 12 — Coach Summaries | 10 | 562 | High | ✅ COMPLETE |
-| 13 — Pending Actions | 3 | ~200 | High | ⭐⭐ |
+| 13 — Pending Actions | 4 | 344 | High | ✅ COMPLETE |
 | 14 — Settings UI | 1 | ~150 | Medium | ⭐ |
 | 15 — Vitals Charts | 2 | ~200 | Med-High | ⭐⭐ |
 | 16 — AI Notifications | 3 | ~250 | Medium | ⭐ |

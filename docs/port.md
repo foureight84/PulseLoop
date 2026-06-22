@@ -488,6 +488,19 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase12` — 10 files, 562 lines
 - **Code review:** (pending)
 
+### Phase 13: Pending Actions ✅ COMPLETE
+- [x] Create `PendingAction.kt` — serializable action model (kind, activityId, summary, confirmLabel)
+- [x] Create `PendingActionExecutor.kt` — execute confirmed actions (delete/update) against Room
+- [x] Add `pendingActions` list to ToolExecutionContext in CoachTool.kt
+- [x] Add 5 write tools to ToolImplementations.kt:
+  - `log_user_note` — persists health notes as CoachMemoryEntity
+  - `log_activity_correction` — logs ring-missed activities as memory
+  - `create_activity_session_from_description` — creates workout from LLM description
+  - `update_activity_session` — edits workout (immediate for today, confirmation for past)
+  - `delete_activity_session` — always requires confirmation via PendingAction
+- **Committed:** branch `feature/android_phase13` — 4 files, 344 lines
+- **Code review:** reviewed — delete marks cancelled; imports verified
+
 ---
 
 ## Risk Assessment

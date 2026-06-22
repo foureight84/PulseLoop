@@ -347,15 +347,171 @@ fun SettingsScreen(
             }
         }
 
+        // Profile — feeds the ring's BP / blood-sugar / calorie algorithms (setUserInfo 0x02)
+        // plus an optional BP calibration (setBPAdjust 0x33). Fields respect the unit setting.
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Your age, sex, height and weight let the ring compute accurate blood pressure, blood sugar and calories.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+
+                val imperial = keyStore.resolvedUnitSystem == UnitSystem.IMPERIAL
+                var age by remember { mutableStateOf("") }
+                var isMale by remember { mutableStateOf(true) }
+                var heightCmInput by remember { mutableStateOf("") }
+                var feet by remember { mutableStateOf("") }
+                var inches by remember { mutableStateOf("") }
+                var weightInput by remember { mutableStateOf("") }
+                var bpSys by remember { mutableStateOf("") }
+                var bpDia by remember { mutableStateOf("") }
+                var savedMsg by remember { mutableStateOf<String?>(null) }
+
+                LaunchedEffect(Unit) {
+                    val p = db.userProfileDao().get()
+                    age = p?.age?.toString() ?: ""
+                    isMale = !"female".equals(p?.sex, ignoreCase = true)
+                    p?.heightCm?.let { cm ->
+                        if (imperial) {
+                            val totalIn = (cm / 2.54).toInt()
+                            feet = (totalIn / 12).toString()
+                            inches = (totalIn % 12).toString()
+                        } else heightCmInput = "%.0f".format(cm)
+                    }
+                    p?.weightKg?.let { kg ->
+                        weightInput = if (imperial) "%.0f".format(kg * 2.20462) else "%.0f".format(kg)
+                    }
+                    bpSys = keyStore.bpAdjustSystolic.takeIf { it > 0 }?.toString() ?: ""
+                    bpDia = keyStore.bpAdjustDiastolic.takeIf { it > 0 }?.toString() ?: ""
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = age, onValueChange = { age = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Age") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true, modifier = Modifier.weight(1f),
+                    )
+                    // Sex toggle
+                    Row(Modifier.weight(1.4f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        FilterChip(selected = isMale, onClick = { isMale = true }, label = { Text("Male") }, modifier = Modifier.weight(1f))
+                        FilterChip(selected = !isMale, onClick = { isMale = false }, label = { Text("Female") }, modifier = Modifier.weight(1f))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                if (imperial) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = feet, onValueChange = { feet = it.filter(Char::isDigit).take(1) },
+                            label = { Text("Height (ft)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true, modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = inches, onValueChange = { inches = it.filter(Char::isDigit).take(2) },
+                            label = { Text("(in)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true, modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = weightInput, onValueChange = { weightInput = it.filter(Char::isDigit).take(3) },
+                            label = { Text("Weight (lb)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true, modifier = Modifier.weight(1.2f),
+                        )
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = heightCmInput, onValueChange = { heightCmInput = it.filter(Char::isDigit).take(3) },
+                            label = { Text("Height (cm)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true, modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = weightInput, onValueChange = { weightInput = it.filter(Char::isDigit).take(3) },
+                            label = { Text("Weight (kg)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true, modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text("Blood pressure calibration", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Optional. Enter a recent cuff reading so the ring offsets its values to match.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = bpSys, onValueChange = { bpSys = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Systolic") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true, modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = bpDia, onValueChange = { bpDia = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Diastolic") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true, modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val heightCm: Double? = if (imperial) {
+                                val f = feet.toIntOrNull()
+                                val i = inches.toIntOrNull() ?: 0
+                                f?.let { ((it * 12 + i) * 2.54) }
+                            } else heightCmInput.toDoubleOrNull()
+                            val weightKg: Double? = weightInput.toDoubleOrNull()?.let {
+                                if (imperial) it / 2.20462 else it
+                            }
+                            val existing = db.userProfileDao().get()
+                            val entity = (existing ?: com.pulseloop.data.entity.UserProfileEntity()).copy(
+                                age = age.toIntOrNull(),
+                                sex = if (isMale) "male" else "female",
+                                heightCm = heightCm,
+                                weightKg = weightKg,
+                                updatedAt = System.currentTimeMillis(),
+                            )
+                            db.userProfileDao().upsert(entity)
+                            val sysI = bpSys.toIntOrNull() ?: 0
+                            val diaI = bpDia.toIntOrNull() ?: 0
+                            keyStore.bpAdjustSystolic = sysI
+                            keyStore.bpAdjustDiastolic = diaI
+                            coordinator?.applyUserSettings(entity, sysI, diaI)
+                            savedMsg = if (coordinator?.isConnected == true)
+                                "Saved & sent to ring ✓" else "Saved — will sync on next connect"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Save profile") }
+                savedMsg?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+
         // Ring — connection management & unpair
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("Ring", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
-                val device = remember { mutableStateOf<com.pulseloop.data.entity.DeviceEntity?>(null) }
-                LaunchedEffect(Unit) {
-                    device.value = db.deviceDao().current()
-                }
+                // Observe the device row reactively so the connection status reflects
+                // live BLE state changes (connect / disconnect / reconnect) in real time
+                // rather than a value frozen at screen-open.
+                val device = db.deviceDao().currentFlow().collectAsState(initial = null)
                 val isConnected = device.value?.stateRaw == "CONNECTED"
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -396,14 +552,14 @@ fun SettingsScreen(
                                     if (coordinator != null && isConnected) {
                                         coordinator.forgetRing {
                                             scope.launch {
+                                                // Clearing the row emits null through currentFlow(),
+                                                // which updates the UI reactively.
                                                 db.deviceDao().clear()
-                                                device.value = null
                                             }
                                         }
                                     } else {
                                         bleClient?.forget()
                                         db.deviceDao().clear()
-                                        device.value = null
                                     }
                                 }
                             },

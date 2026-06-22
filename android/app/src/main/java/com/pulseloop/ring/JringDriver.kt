@@ -124,6 +124,18 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
         writer?.enqueue(encoder.makeGoalCommand(steps))
     }
 
+    override fun setUserInfo(ageYears: Int, isMale: Boolean, heightCm: Int, weightKg: Int) {
+        writer?.enqueue(encoder.makeUserInfoCommand(ageYears, isMale, heightCm, weightKg))
+    }
+
+    override fun setBloodPressureAdjust(systolic: Int, diastolic: Int) {
+        writer?.enqueue(encoder.makeBPAdjustCommand(systolic, diastolic))
+    }
+
+    override fun setAppId(appId: String) {
+        writer?.enqueue(encoder.makeAppIdCommand(appId))
+    }
+
     // Keepalive ping (0x3A) — prevents ring's ~20s idle disconnect
     fun sendKeepalive() {
         val cmd = ByteArray(20)

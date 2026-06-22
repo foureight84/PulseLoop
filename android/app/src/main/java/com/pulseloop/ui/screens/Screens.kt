@@ -46,6 +46,7 @@ fun TodayScreen(
     coordinator: com.pulseloop.service.RingSyncCoordinator? = null,
 ) {
     val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(TodayViewModel.TodayState()) })
+    val syncPct = coordinator?.syncProgress?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
     val units = ApiKeyStore(LocalContext.current).resolvedUnitSystem
@@ -80,7 +81,8 @@ fun TodayScreen(
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            if (state.isConnected) "Connected · ${state.batteryPercent}%"
+                            if (syncPct != null) (if (syncPct > 0) "Syncing $syncPct%" else "Syncing…")
+                            else if (state.isConnected) "Connected · ${state.batteryPercent}%"
                             else if (state.deviceState == "CONNECTING") "Connecting…"
                             else "Disconnected",
                             style = MaterialTheme.typography.labelSmall,
@@ -272,6 +274,8 @@ fun VitalsScreen(
     val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(VitalsViewModel.VitalsState()) })
     val scope = rememberCoroutineScope()
     var measuring by remember { mutableStateOf(false) }
+    var remaining by remember { mutableStateOf(0) }
+    val measureSeconds = com.pulseloop.service.RingSyncCoordinator.COMBINED_MEASURE_SECONDS
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -290,14 +294,38 @@ fun VitalsScreen(
                         enabled = !measuring,
                         onClick = {
                             measuring = true
+                            remaining = measureSeconds
                             scope.launch {
-                                try { coordinator.measureCombined() } finally { measuring = false }
+                                val ticker = launch {
+                                    while (remaining > 0) { kotlinx.coroutines.delay(1000); remaining-- }
+                                }
+                                try {
+                                    coordinator.measureCombined()
+                                } finally {
+                                    ticker.cancel()
+                                    remaining = 0
+                                    measuring = false
+                                    viewModel?.refreshNow()  // show the new reading immediately
+                                }
                             }
                         },
                     ) {
-                        Text(if (measuring) "Measuring…" else "Measure")
+                        Text(if (measuring) "Measuring… ${remaining}s" else "Measure")
                     }
                 }
+            }
+            if (measuring) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { ((measureSeconds - remaining).toFloat() / measureSeconds).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Keep still — measuring blood pressure, SpO₂, stress, fatigue & blood sugar…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -476,6 +504,9 @@ fun VitalsScreen(
                         } else {
                             Text("No blood pressure data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        if (measuring) {
+                            Text("Measuring… updates when complete", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                        }
                     }
                 }
             }
@@ -495,6 +526,9 @@ fun VitalsScreen(
                             }
                         } else {
                             Text("No blood sugar data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (measuring) {
+                            Text("Measuring… updates when complete", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
                 }

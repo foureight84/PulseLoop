@@ -4,8 +4,13 @@ import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.entity.DeviceEntity
 import com.pulseloop.data.entity.MeasurementEntity
 import com.pulseloop.data.entity.UserGoalEntity
+import com.pulseloop.data.entity.UserProfileEntity
 import com.pulseloop.ring.*
+import com.pulseloop.settings.ApiKeyStore
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Ported from [RingSyncCoordinator] in RingSyncCoordinator.swift.
@@ -15,6 +20,7 @@ import kotlinx.coroutines.*
 class RingSyncCoordinator(
     private val client: RingBLEClient,
     private val db: PulseLoopDatabase,
+    private val apiKeyStore: ApiKeyStore? = null,
 ) {
     enum class MeasureState { IDLE, MEASURING, DONE, FAILED }
 
@@ -26,6 +32,23 @@ class RingSyncCoordinator(
         private set
     var lastSyncAt: Long? = null
         private set
+
+    /**
+     * History-sync progress, 0–100 while records stream in after a connect, null when
+     * idle/done. Computed the same way as the official app's "Sync data X%": the newest
+     * received record's timestamp mapped onto the [now − N days, now] window, monotonic.
+     */
+    private val _syncProgress = MutableStateFlow<Int?>(null)
+    val syncProgress: StateFlow<Int?> = _syncProgress.asStateFlow()
+    private var syncWindowStart = 0L
+    private var syncWindowEnd = 0L
+    private var syncResetJob: Job? = null
+    private var lastAdvanceAt = 0L
+    /** Days of history requested on startup — must match makeHistoryQueryCommand's default. */
+    private val syncWindowDays = 1
+    /** How often the stall-watcher checks, and how long without progress before it gives up. */
+    private val SYNC_STALL_CHECK_MS = 2_000L
+    private val SYNC_STALL_MS = 12_000L
 
     /** Latest live HR bpm, mirrored for UI without a query. */
     var latestHRValue: Int? = null
@@ -45,7 +68,12 @@ class RingSyncCoordinator(
     private val hrMeasureSeconds = 30L
     private val hrSettleSeconds = 4
     private val spo2MeasureSeconds = 40L
-    private val combinedMeasureSeconds = 45L
+    private val combinedMeasureSeconds = COMBINED_MEASURE_SECONDS.toLong()
+
+    companion object {
+        /** Duration of a combined spot measurement (0x23→0x24); also drives the UI countdown. */
+        const val COMBINED_MEASURE_SECONDS = 45
+    }
 
     private val engine: RingSyncEngine? get() = client.syncEngine
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -68,8 +96,52 @@ class RingSyncCoordinator(
 
     /** Canonical startup sequence run on connect. */
     fun runStartupSequence() {
+        // Begin progress here (a real sync request), NOT on DeviceStateChanged(CONNECTED):
+        // the ring re-emits CONNECTED on every 0x0C status packet, which would otherwise
+        // keep resetting the bar to 0%.
+        beginSyncProgress()
+        // Claim the ring for this app FIRST (0x48). The ring binds to the connecting app's
+        // id and otherwise can stay mute after another app (e.g. the official one) claimed it.
+        apiKeyStore?.ringAppId?.let { engine?.setAppId(it) }
         engine?.runStartup()
+        // Push the user's anthropometrics + BP calibration so the ring's on-device
+        // BP/blood-sugar/calorie algorithms run on real inputs (matches the official
+        // app, which calls setUserInfo on every connect).
+        pushUserSettingsFromStore()
         lastSyncAt = System.currentTimeMillis()
+    }
+
+    /** Read the stored profile + BP calibration and push them to the ring. */
+    private fun pushUserSettingsFromStore() {
+        scope.launch {
+            val profile = try { db.userProfileDao().get() } catch (_: Exception) { null }
+            applyUserSettings(
+                profile,
+                apiKeyStore?.bpAdjustSystolic ?: 0,
+                apiKeyStore?.bpAdjustDiastolic ?: 0,
+            )
+        }
+    }
+
+    /**
+     * Send user info (0x02) and BP calibration (0x33) to the ring. Called on connect
+     * and immediately after the user edits their profile in Settings. Values must be
+     * metric (cm / kg); [makeUserInfoCommand] transmits them with the metric flag.
+     */
+    fun applyUserSettings(profile: UserProfileEntity?, bpSystolic: Int, bpDiastolic: Int) {
+        if (!isConnected) return
+        profile?.let { p ->
+            val age = p.age
+            val heightCm = p.heightCm?.toInt()
+            val weightKg = p.weightKg?.toInt()
+            if (age != null && heightCm != null && weightKg != null) {
+                val isMale = p.sex?.equals("male", ignoreCase = true) == true
+                engine?.setUserInfo(age, isMale, heightCm, weightKg)
+            }
+        }
+        if (bpSystolic in 1..300 && bpDiastolic in 1..300) {
+            engine?.setBloodPressureAdjust(bpSystolic, bpDiastolic)
+        }
     }
 
     fun syncNow() {
@@ -227,11 +299,71 @@ class RingSyncCoordinator(
                 latestSpO2Value = event.value
             }
             is PulseEvent.DeviceStateChanged -> {
-                if (event.state == RingConnectionState.CONNECTED) {
-                    lastSyncAt = System.currentTimeMillis()
+                when (event.state) {
+                    RingConnectionState.CONNECTED -> lastSyncAt = System.currentTimeMillis()
+                    RingConnectionState.DISCONNECTED,
+                    RingConnectionState.FAILED,
+                    RingConnectionState.IDLE -> clearSyncProgress()
+                    else -> {}
                 }
             }
+            // History records stream in oldest→newest; advance the progress bar by mapping
+            // each record's timestamp onto the sync window.
+            is PulseEvent.ActivityBucket -> advanceSyncProgress(event.timestamp.toEpochMilli())
+            is PulseEvent.ActivityUpdate -> advanceSyncProgress(event.timestamp.toEpochMilli())
+            is PulseEvent.SleepTimeline -> advanceSyncProgress(event.timestamp.toEpochMilli())
+            is PulseEvent.HistoryMeasurement -> advanceSyncProgress(event.timestamp.toEpochMilli())
+            is PulseEvent.SyncProgress -> if (event.stage == "done") finishSyncProgressSoon()
             else -> {}
         }
+    }
+
+    // MARK: - Sync progress (mirrors official "Sync data X%")
+
+    private fun beginSyncProgress() {
+        syncWindowEnd = System.currentTimeMillis()
+        syncWindowStart = syncWindowEnd - syncWindowDays * 86_400_000L
+        lastAdvanceAt = syncWindowEnd
+        syncResetJob?.cancel()
+        _syncProgress.value = 0
+        // Never let the indicator stick: if no history record advances it for a while
+        // (e.g. a stale link, or the ring has nothing to send), wrap it up / hide it.
+        syncResetJob = scope.launch {
+            while (isActive) {
+                delay(SYNC_STALL_CHECK_MS)
+                val v = _syncProgress.value ?: break
+                if (v >= 100) break
+                if (System.currentTimeMillis() - lastAdvanceAt > SYNC_STALL_MS) {
+                    if (v > 0) finishSyncProgressSoon() else _syncProgress.value = null
+                    break
+                }
+            }
+        }
+    }
+
+    private fun advanceSyncProgress(recordEpochMs: Long) {
+        // Only while a sync is active — ignore live measurements arriving after sync.
+        val current = _syncProgress.value ?: return
+        if (syncWindowEnd <= syncWindowStart) return
+        val span = (syncWindowEnd - syncWindowStart).toDouble()
+        val pct = (((recordEpochMs - syncWindowStart) * 100.0) / span).toInt().coerceIn(0, 100)
+        lastAdvanceAt = System.currentTimeMillis()  // data is flowing — keep the bar alive
+        if (pct > current) _syncProgress.value = pct
+        if (pct >= 100) finishSyncProgressSoon()
+    }
+
+    private fun finishSyncProgressSoon() {
+        if (_syncProgress.value == null) return
+        syncResetJob?.cancel()
+        syncResetJob = scope.launch {
+            _syncProgress.value = 100
+            delay(1500)
+            _syncProgress.value = null
+        }
+    }
+
+    private fun clearSyncProgress() {
+        syncResetJob?.cancel()
+        _syncProgress.value = null
     }
 }

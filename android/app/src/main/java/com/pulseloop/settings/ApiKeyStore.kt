@@ -73,6 +73,26 @@ class ApiKeyStore(context: Context) {
             else prefs.edit().remove(KEY_UNIT_SYSTEM).apply()
         }
 
+    /** Blood-pressure calibration reference (from a cuff). 0 = not set / disabled. */
+    var bpAdjustSystolic: Int
+        get() = prefs.getInt(KEY_BP_ADJ_SYS, 0)
+        set(value) { prefs.edit().putInt(KEY_BP_ADJ_SYS, value).apply() }
+
+    var bpAdjustDiastolic: Int
+        get() = prefs.getInt(KEY_BP_ADJ_DIA, 0)
+        set(value) { prefs.edit().putInt(KEY_BP_ADJ_DIA, value).apply() }
+
+    /** Stable per-install id sent to the ring (0x48 setAppId) so it streams data to us.
+     *  Generated once and reused; ≤18 ASCII chars to fit the command payload. */
+    val ringAppId: String
+        get() {
+            val existing = prefs.getString(KEY_RING_APP_ID, null)
+            if (!existing.isNullOrEmpty()) return existing
+            val id = "PL" + java.util.UUID.randomUUID().toString().replace("-", "").take(14)
+            prefs.edit().putString(KEY_RING_APP_ID, id).apply()
+            return id
+        }
+
     /** Resolved unit system: manual preference or auto-detected from locale */
     val resolvedUnitSystem: UnitSystem
         get() {
@@ -97,5 +117,8 @@ class ApiKeyStore(context: Context) {
         private const val KEY_ONBOARDING = "onboarding_completed"
         private const val KEY_DEMO_SEEDED = "demo_data_seeded"
         private const val KEY_UNIT_SYSTEM = "unit_system"
+        private const val KEY_BP_ADJ_SYS = "bp_adjust_systolic"
+        private const val KEY_BP_ADJ_DIA = "bp_adjust_diastolic"
+        private const val KEY_RING_APP_ID = "ring_app_id"
     }
 }

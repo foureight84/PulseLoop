@@ -135,13 +135,14 @@ class EventPersistenceSubscriber(
             }
             is PulseEvent.ActivitySyncReset -> {}
             is PulseEvent.FirmwareVersion -> {
-                // 0xF6 carries an unreliable value on this hardware (≠ the displayed version).
-                // The authoritative version comes from 0x0C device-info (see decodeStatus), so
-                // only use 0xF6 as a last-resort fallback when nothing else has been read yet.
-                val device = db.deviceDao().current()
-                if (device != null && event.version != null && device.firmwareVersion.isNullOrBlank()) {
-                    db.deviceDao().upsert(device.copy(firmwareVersion = "V${event.version}", updatedAt = System.currentTimeMillis()))
-                }
+                // 0xF6 must NOT write the firmware version. The ring streams two distinct 0xF6
+                // sub-records — one (sub-byte 0x00) carries the real version (e.g. 138), the
+                // other (sub-byte 0x41) carries an unrelated value that decodes to 2704. Because
+                // the decoder can't reliably tell them apart and both stream constantly, letting
+                // 0xF6 populate a blank field is exactly what produced the bogus "V2704".
+                // The authoritative version comes from 0x0C device-info (see decodeStatus) and is
+                // requested on every connect via runStartup(), with DIS 0x2A26 as a fallback, so
+                // 0xF6 is never needed here. Kept as a decoded event purely for diagnostics.
             }
         }
     }

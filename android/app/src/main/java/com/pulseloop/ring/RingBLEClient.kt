@@ -93,12 +93,26 @@ class RingBLEClient(private val context: Context) {
     private data class QueuedWrite(val data: ByteArray, val useCommandChannel: Boolean)
     private val writeQueue = mutableListOf<QueuedWrite>()
     private var writeInFlight = false
+    private var writeSeq = 0
 
     // MARK: Connection state
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val prefs: SharedPreferences =
         context.getSharedPreferences("ring_ble", Context.MODE_PRIVATE)
+
+    // MARK: Liveness watchdog
+    //
+    // The ring does not echo the 0x3A keepalive, so the only proof the link is alive is a
+    // GATT-level write ACK or an inbound notification. When the OS drops the link during
+    // Doze it often never delivers STATE_DISCONNECTED, leaving a "zombie" GATT: state stays
+    // CONNECTED, our writes go nowhere, and nothing ever syncs. The watchdog detects this
+    // (no GATT activity for too long) and forces a fresh reconnect.
+    @Volatile private var lastActivityAt: Long = 0L
+    private var connectingStartedAt: Long = 0L
+    private var watchdogJob: Job? = null
+
+    init { startConnectionWatchdog() }
 
     // MARK: Public API
 
@@ -166,6 +180,82 @@ class RingBLEClient(private val context: Context) {
     }
 
     /**
+     * Re-establish the link if it has silently dropped — e.g. the OS tore the GATT
+     * down while the phone was idle (Doze) and autoConnect never recovered. Safe to
+     * call repeatedly (e.g. every time the app returns to the foreground): a live or
+     * in-progress connection is left untouched.
+     */
+    fun reconnectIfNeeded() {
+        if (!bluetoothAdapter.isEnabled || !hasPermissions()) return
+        val lastId = lastKnownIdentifier ?: return
+        when (_state.value.connectionState) {
+            RingConnectionState.CONNECTING, RingConnectionState.SCANNING -> return
+            RingConnectionState.CONNECTED -> {
+                // Trust but verify — the OS can drop the GATT during Doze before the
+                // disconnect callback is delivered, leaving our state stale-CONNECTED.
+                // Confirm against the OS profile state before deciding to do nothing.
+                val dev = try { bluetoothAdapter.getRemoteDevice(lastId) } catch (_: Exception) { null }
+                val live = dev != null &&
+                    bluetoothManager.getConnectionState(dev, BluetoothProfile.GATT) ==
+                        BluetoothProfile.STATE_CONNECTED
+                if (live) return
+            }
+            else -> {}
+        }
+        connectLastKnown()
+    }
+
+    /**
+     * Periodic liveness check. While CONNECTED, the keepalive writes every 15s and each
+     * ACK refreshes [lastActivityAt]; if no GATT activity (write ACK or inbound notify)
+     * arrives for [LINK_STALE_MS], the link is a zombie → tear it down and reconnect.
+     * While DISCONNECTED with a known ring, retry the connection so a failed silent
+     * reconnect doesn't leave us stuck offline.
+     */
+    private fun startConnectionWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = scope.launch {
+            while (isActive) {
+                delay(WATCHDOG_INTERVAL_MS)
+                try { connectionWatchdogTick() } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun connectionWatchdogTick() {
+        if (!bluetoothAdapter.isEnabled || !hasPermissions()) return
+        if (lastKnownIdentifier == null) return
+        when (_state.value.connectionState) {
+            RingConnectionState.CONNECTED -> {
+                val idleFor = System.currentTimeMillis() - lastActivityAt
+                if (lastActivityAt > 0 && idleFor > LINK_STALE_MS) {
+                    Log.w("RingBLEClient", "Link stale (${idleFor}ms, no GATT activity) — forcing reconnect")
+                    forceReconnect()
+                }
+            }
+            RingConnectionState.DISCONNECTED,
+            RingConnectionState.FAILED,
+            RingConnectionState.IDLE -> connectLastKnown()
+            RingConnectionState.CONNECTING -> {
+                // A reconnect can hang indefinitely (autoConnect pending against a device
+                // that never re-advertises). Time it out and retry with a fresh GATT.
+                if (connectingStartedAt > 0 &&
+                    System.currentTimeMillis() - connectingStartedAt > CONNECT_TIMEOUT_MS) {
+                    Log.w("RingBLEClient", "Connect attempt hung >${CONNECT_TIMEOUT_MS}ms — retrying")
+                    forceReconnect()
+                }
+            }
+            else -> {}  // SCANNING — let the scan proceed
+        }
+    }
+
+    /** Hard reset: drop the (possibly zombie) GATT and start a fresh connection. */
+    private fun forceReconnect() {
+        // beginConnect (via connectLastKnown) closes the stale GATT before opening a new one.
+        connectLastKnown()
+    }
+
+    /**
      * Graceful disconnect initiated by the user (e.g., navigating away).
      * Does NOT clear bond or GATT cache — keeps pairing intact for silent reconnect.
      * With autoConnect=true, Android will automatically reconnect when the ring
@@ -224,8 +314,20 @@ class RingBLEClient(private val context: Context) {
 
     private fun beginConnect(target: BluetoothDevice, deviceType: RingDeviceType?) {
         scanner?.stopScan(scanCallback)
+        // Close any stale GATT from a previous (now-dead) connection before opening a new
+        // one. Reconnect attempts after an idle drop would otherwise leak GATT clients and
+        // can collide with the orphaned handle. A fresh GATT mirrors the proven
+        // force-close-and-reopen recovery path.
+        bluetoothGatt?.let { old ->
+            try { old.disconnect() } catch (_: Exception) {}
+            try { old.close() } catch (_: Exception) {}
+        }
+        bluetoothGatt = null
+        writeChar = null; commandChar = null; notifyChars.clear(); batteryChar = null
+        writeInFlight = false; writeQueue.clear()
         val coordinator = coordinators.firstOrNull { it.deviceType == deviceType } ?: JringCoordinator
         installDriver(coordinator)
+        connectingStartedAt = System.currentTimeMillis()
         updateState { copy(connectionState = RingConnectionState.CONNECTING) }
         // Mirror the attempt to the persisted state so the Today/Settings views show
         // "Connecting…" rather than a stale "Connected" while autoConnect is pending.
@@ -293,6 +395,20 @@ class RingBLEClient(private val context: Context) {
                 RingDecodedEvent.CommandAck(commandId = if (item.data.isNotEmpty()) item.data[0].toUByte() else 0u))
         )
         gatt.writeCharacteristic(target)
+
+        // Guard against a missing onCharacteristicWrite callback. If the ACK never comes,
+        // writeInFlight would stay true forever and the entire command queue (history
+        // queries, keepalive, …) would deadlock — exactly the "one command then silence"
+        // failure. Time the write out and unblock the queue.
+        val seq = ++writeSeq
+        scope.launch {
+            delay(WRITE_TIMEOUT_MS)
+            if (writeInFlight && seq == writeSeq) {
+                Log.w("RingBLEClient", "Write ACK timed out — unblocking queue")
+                writeInFlight = false
+                pumpWrites()
+            }
+        }
     }
 
     private fun matchDeviceType(name: String?, scanRecord: ScanRecord?): RingDeviceType? {
@@ -472,6 +588,7 @@ class RingBLEClient(private val context: Context) {
         override fun onCharacteristicRead(
             gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int
         ) {
+            lastActivityAt = System.currentTimeMillis()
             if (status != BluetoothGatt.GATT_SUCCESS) return
             if (characteristic.uuid.toString() == activeDriver?.batteryCharUUID) {
                 val value = characteristic.value
@@ -494,6 +611,7 @@ class RingBLEClient(private val context: Context) {
         override fun onCharacteristicWrite(
             gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int
         ) {
+            lastActivityAt = System.currentTimeMillis()  // GATT ACK — link is alive
             writeInFlight = false
             pumpWrites()
         }
@@ -501,6 +619,7 @@ class RingBLEClient(private val context: Context) {
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic
         ) {
+            lastActivityAt = System.currentTimeMillis()  // inbound notify — link is alive
             val value = characteristic.value ?: return
             val uuid = characteristic.uuid.toString()
 
@@ -548,6 +667,7 @@ class RingBLEClient(private val context: Context) {
             if (_state.value.connectionState == RingConnectionState.CONNECTED) return
 
             updateState { copy(connectionState = RingConnectionState.CONNECTED) }
+            lastActivityAt = System.currentTimeMillis()  // fresh link — start the staleness clock
             startKeepalive()  // ping ring every 15s to prevent idle disconnect
             val device = gatt.device
             prefs.edit()
@@ -575,6 +695,13 @@ class RingBLEClient(private val context: Context) {
     }
 
     private fun handleDisconnect(gatt: BluetoothGatt) {
+        // Ignore late callbacks from a GATT we already superseded during a reconnect
+        // (we close the old handle in beginConnect). Acting on them would clobber the
+        // CONNECTING state of the fresh attempt with a spurious DISCONNECTED.
+        if (bluetoothGatt != null && gatt !== bluetoothGatt) {
+            try { gatt.close() } catch (_: Exception) {}
+            return
+        }
         writeInFlight = false; writeQueue.clear()
         stopKeepalive()
 
@@ -589,6 +716,7 @@ class RingBLEClient(private val context: Context) {
     }
 
     fun destroy() {
+        watchdogJob?.cancel()
         scope.cancel()
         disconnect()
     }
@@ -596,6 +724,15 @@ class RingBLEClient(private val context: Context) {
     companion object {
         private const val LAST_PERIPHERAL_KEY = "ring.lastPeripheralIdentifier"
         private const val LAST_DEVICE_TYPE_KEY = "ring.lastDeviceType"
+        /** How often the liveness watchdog runs. */
+        private const val WATCHDOG_INTERVAL_MS = 15_000L
+        /** No GATT activity for this long while CONNECTED ⇒ zombie link ⇒ reconnect.
+         *  Comfortably longer than the 15s keepalive so a single missed ACK won't trip it. */
+        private const val LINK_STALE_MS = 50_000L
+        /** A CONNECTING attempt that hasn't completed in this long is retried from scratch. */
+        private const val CONNECT_TIMEOUT_MS = 30_000L
+        /** Max wait for a write ACK before unblocking the queue (prevents a stuck writeInFlight). */
+        private const val WRITE_TIMEOUT_MS = 4_000L
         private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private val DIS_SERVICE_UUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb")
         private val FW_REV_UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")

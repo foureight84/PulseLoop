@@ -52,6 +52,13 @@ interface RingSyncEngine {
     fun setGoal(steps: Int)
     fun powerOff()
     fun factoryReset()
+    /** Push user anthropometrics (age/sex/height/weight) so on-device BP/sugar/calorie
+     *  algorithms have real inputs. No-op if unsupported. */
+    fun setUserInfo(ageYears: Int, isMale: Boolean, heightCm: Int, weightKg: Int) {}
+    /** Calibrate blood pressure against a reference systolic/diastolic. No-op if unsupported. */
+    fun setBloodPressureAdjust(systolic: Int, diastolic: Int) {}
+    /** Claim the ring for this app's id so it streams data to us. No-op if unsupported. */
+    fun setAppId(appId: String) {}
 }
 
 /**

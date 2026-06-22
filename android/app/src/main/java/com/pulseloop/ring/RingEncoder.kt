@@ -51,6 +51,69 @@ object RingEncoder {
     fun makeFindRingCommand(): ByteArray = hexToBytes("040a000000000000000000000000000000000000")
 
     /**
+     * App identity (0x48). The ring binds to the appId of the connecting phone/app and
+     * streams data to it; without this the ring can stay mute (e.g. after another app —
+     * the official one — claimed it). Mirrors the official SDK's setAppId
+     * (BluetoothLeService.l): 0x48 followed by up to 18 ASCII bytes of the id.
+     */
+    fun makeAppIdCommand(appId: String): ByteArray {
+        val cmd = ByteArray(20)
+        cmd[0] = 0x48
+        val bytes = appId.toByteArray(Charsets.US_ASCII)
+        for (i in bytes.indices) {
+            if (i >= 18) break
+            cmd[i + 1] = bytes[i]
+        }
+        return cmd
+    }
+
+    /**
+     * User info / personal data (0x02). Feeds the ring's BP, blood-sugar and
+     * calorie algorithms. Mirrors the official SDK's setUserInfo (BluetoothLeService.a0):
+     *   byte[0] = 0x02
+     *   byte[1] = age (low 7 bits) | 0x80 if male
+     *   byte[2] = height (cm)
+     *   byte[3] = weight (kg)
+     *   byte[4] = unit flag (0 = metric, 1 = imperial)
+     * We always transmit metric values with unit=0 so the ring interprets them
+     * unambiguously, regardless of the app's display preference.
+     */
+    fun makeUserInfoCommand(
+        ageYears: Int,
+        isMale: Boolean,
+        heightCm: Int,
+        weightKg: Int,
+    ): ByteArray {
+        val cmd = ByteArray(20)
+        cmd[0] = 0x02
+        val age = ageYears.coerceIn(0, 127)
+        cmd[1] = (age or if (isMale) 0x80 else 0x00).toByte()
+        cmd[2] = heightCm.coerceIn(0, 255).toByte()
+        cmd[3] = weightKg.coerceIn(0, 255).toByte()
+        cmd[4] = 0x00  // metric
+        return cmd
+    }
+
+    /**
+     * Blood-pressure calibration (0x33). Sends a reference systolic/diastolic
+     * (e.g. from a cuff) so the ring offsets its readings to match. Mirrors the
+     * official SDK's setBPAdjust (BluetoothLeService.c): each value is a
+     * little-endian u16.
+     *   byte[0] = 0x33
+     *   byte[1..2] = systolic (LE u16)
+     *   byte[3..4] = diastolic (LE u16)
+     */
+    fun makeBPAdjustCommand(systolic: Int, diastolic: Int): ByteArray {
+        val cmd = ByteArray(20)
+        cmd[0] = 0x33
+        cmd[1] = (systolic and 0xFF).toByte()
+        cmd[2] = ((systolic shr 8) and 0xFF).toByte()
+        cmd[3] = (diastolic and 0xFF).toByte()
+        cmd[4] = ((diastolic shr 8) and 0xFF).toByte()
+        return cmd
+    }
+
+    /**
      * Daily step goal command (0x1a).
      * Protocol.md: `1a 10 27 00 00 …` sets a 10000-step goal.
      */

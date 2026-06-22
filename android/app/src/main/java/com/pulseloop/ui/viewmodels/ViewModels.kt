@@ -181,7 +181,7 @@ class ActivityViewModel(db: PulseLoopDatabase) : ViewModel() {
  * Ported from MetricsService.metricRange in PulseServices.swift.
  * Uses reactive polling so data appears as soon as the ring syncs.
  */
-class VitalsViewModel(db: PulseLoopDatabase) : ViewModel() {
+class VitalsViewModel(private val db: PulseLoopDatabase) : ViewModel() {
     data class VitalsState(
         val hrSamples: List<Double> = emptyList(),
         val spo2Samples: List<Double> = emptyList(),
@@ -217,6 +217,12 @@ class VitalsViewModel(db: PulseLoopDatabase) : ViewModel() {
                 kotlinx.coroutines.delay(5000)
             }
         }
+    }
+
+    /** Force an immediate refresh — call right after a spot measurement completes so the
+     *  new value appears at once instead of waiting for the next poll tick. */
+    fun refreshNow() {
+        viewModelScope.launch { try { refresh(db) } catch (_: Exception) {} }
     }
 
     private suspend fun refresh(db: PulseLoopDatabase) {

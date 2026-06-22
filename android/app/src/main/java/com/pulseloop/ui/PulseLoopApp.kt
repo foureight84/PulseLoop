@@ -8,6 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -38,11 +41,11 @@ fun PulseLoopApp() {
         // ── Singletons ───────────────────────────────────────────────────
         val db = remember { PulseLoopDatabase.getInstance(context) }
         val bleClient = remember { RingBLEClient(context) }
-        val coordinator = remember { RingSyncCoordinator(bleClient, db) }
+        val apiKeyStore = remember { ApiKeyStore(context) }
+        val coordinator = remember { RingSyncCoordinator(bleClient, db, apiKeyStore) }
         val gpsRecorder = remember { GpsRouteRecorder(context) }
         val liveWorkout = remember { LiveWorkoutManager(coordinator, db, gpsRecorder, context) }
         val persistence = remember { EventPersistenceSubscriber(db) }
-        val apiKeyStore = remember { ApiKeyStore(context) }
         val summaryCoordinator = remember { CoachSummaryCoordinator(db, apiKeyStore) }
 
         // ── Coach wiring ─────────────────────────────────────────────────
@@ -119,6 +122,27 @@ fun PulseLoopApp() {
                 com.pulseloop.data.DemoDataSeeder.seed(db)
                 apiKeyStore.demoDataSeeded = true
             }
+        }
+
+        // ── Auto-reconnect on return to foreground ───────────────────────
+        // When the phone wakes from idle, the OS may have silently torn down the GATT
+        // (Doze) without autoConnect recovering it. Re-attempt the link on every
+        // foreground transition so the user never has to force-close the app to reconnect.
+        // The first ON_START is handled by the LaunchedEffect above, so skip it here.
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            var isFirstStart = true
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_START) {
+                    if (isFirstStart) {
+                        isFirstStart = false
+                    } else {
+                        bleClient.reconnectIfNeeded()
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
         // ── Navigation ───────────────────────────────────────────────────

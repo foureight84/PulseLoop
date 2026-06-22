@@ -638,3 +638,73 @@ PulseLoopAndroid/
 | DI/Config | 0 | 2 |
 | Tests | 8 | ~12 |
 | **Total** | **~74 core** | **~92** |
+
+---
+
+## 🏁 Checkpoint: Progress as of 2026-06-21
+
+### Completed
+- **9 phases merged** into `feature/android` on `github.com/foureight84/PulseLoop`
+- **49 Kotlin source files** (~6,500 lines) covering 87% of iOS features
+- **APK builds successfully** (`app-debug.apk`, 19MB)
+- **Graphify**: 3258 nodes, 6589 edges, 181 communities (ran after every phase)
+
+### What Works
+- Ring protocol decoding (jring + Colmi, 24 tests pass)
+- BLE client with coordinator registry
+- Room database (18 entities, 14 DAOs, EventPersistenceSubscriber)
+- Compose UI: 5-tab navigation, 10 screens, Material 3 theme
+- Coach orchestrator + 9 tool implementations
+- Workout recording: GPS, HR zones, foreground service, RecordScreen
+- Settings: EncryptedSharedPreferences API key, model selector, demo seeder
+- Coach notifications (WorkManager daily check-in)
+- Charts: SimpleLineChart + MetricWithSparkline
+
+### What's Next (Phase 10: App Wiring)
+These components **exist** but are **never connected** at app startup:
+
+1. **Wire `PulseLoopApp` equivalent** (in `MainActivity.kt` or `PulseLoopApp.kt`):
+   ```kotlin
+   // Create instances
+   val bleClient = RingBLEClient(context)
+   val coordinator = RingSyncCoordinator(bleClient, db)
+   val gps = GpsRouteRecorder(context)
+   val liveWorkout = LiveWorkoutManager(coordinator, db, gps, context)
+   val persistence = EventPersistenceSubscriber(db)
+
+   // Wire onConnected → run startup sequence
+   bleClient.onConnected = { coordinator.runStartupSequence() }
+
+   // Start draining event bus → DB
+   persistence.start()
+   coordinator.start()
+   ```
+
+2. **Wire remaining ViewModels to screens**:
+   - `SleepViewModel` + `ActivityViewModel` to Sleep/Activity screens
+   - `CoachViewModel` to CoachScreen (currently shows static welcome)
+   - Pass VMs via `PulseLoopApp` composable
+
+3. **Add app lifecycle handling**:
+   - `onResume`: schedule notifications, auto-reconnect
+   - `onDestroy`: stop BLE, stop polling, cancel coroutines
+   - Seed demo data on first launch if no ring paired
+
+4. **Critical missing code** (not yet ported):
+   - `CoachDataAccess.kt` — real Room queries for coach tools (currently return mocks)
+   - `CoachContextBuilder.kt` — builds context packet from Room data
+   - `CoachSummaryCoordinator.kt` — background analysis pipeline
+   - `DiagnosticsSubscriber.kt` — raw packet logging
+
+### Commands to Resume
+```bash
+cd /home/khoa/projects/PulseLoopIOS
+git checkout feature/android
+git checkout -b feature/android_phase10
+# Then implement the wiring checklist above
+```
+
+### Repo
+- **Remote**: `git@github.com:foureight84/PulseLoop.git`
+- **Branch**: `feature/android` (all 9 phases merged)
+- **Upstream**: `saksham2001/PulseLoopIOS.git` (original iOS)

@@ -81,13 +81,19 @@ class RingDecoderTest {
         payload[1] = 110.toByte()  // systolic at byte[2]
         payload[2] = 70.toByte()   // diastolic at byte[3]
         payload[3] = 97.toByte()   // SpO2 at byte[4]
-        payload[4] = 30.toByte()   // stress at byte[5]
+        payload[4] = 40.toByte()   // fatigue at byte[5]
+        payload[5] = 30.toByte()   // stress at byte[6]
+        payload[6] = 51.toByte()   // blood sugar ×10 at byte[7] → 5.1 mmol/L → 91.88 mg/dL
         val data = composeRingPacket(0x24, payload)
         val events = RingDecoder.decode(data)
-        assertTrue(events.size >= 4) // HR + systolic + diastolic + SpO2 + stress
+        assertTrue(events.size >= 6) // HR + systolic + diastolic + SpO2 + fatigue + stress + sugar
         assertTrue(events.any { it is RingDecodedEvent.HeartRateSample && (it as RingDecodedEvent.HeartRateSample).bpm == 72 })
         assertTrue(events.any { it is RingDecodedEvent.Spo2Result && (it as RingDecodedEvent.Spo2Result).value == 97 })
         assertTrue(events.any { it is RingDecodedEvent.StressSample && (it as RingDecodedEvent.StressSample).value == 30 })
+        assertTrue(events.any { it is RingDecodedEvent.HistoryMeasurement && (it as RingDecodedEvent.HistoryMeasurement).kind_field == MeasurementKind.FATIGUE && it.value == 40.0 })
+        val sugar = events.filterIsInstance<RingDecodedEvent.HistoryMeasurement>().firstOrNull { it.kind_field == MeasurementKind.BLOOD_SUGAR }
+        assertNotNull(sugar)
+        assertEquals(91.88, sugar!!.value, 0.01)
     }
 
     @Test

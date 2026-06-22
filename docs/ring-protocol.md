@@ -65,8 +65,8 @@ Error responses have the high bit set (opcode `| 0x80`).
 
 | Cmd | Direction | KeepFit Constant | Purpose |
 |-----|-----------|------------------|---------|
-| **★ `0x23`** | write | `CMD_TOGGLE_BLOOD_PRESSURE` | **Trigger combined measurement** (NOT SpO₂!). byte[1] = 1 to start, 0 to stop. Measures: HR + systolic + diastolic + SpO₂ + fatigue. Done: `0xA3` |
-| **★ `0x24`** | notify | `CMD_RECEIVED_SENSOR_DATA` | **Combined measurement result** (NOT SpO₂ result). byte[1]=HR, byte[2]=systolic, byte[3]=diastolic, byte[4]=SpO₂%, byte[5]=fatigue/stress |
+| **★ `0x23`** | write | `CMD_TOGGLE_BLOOD_PRESSURE` | **Trigger combined measurement** (NOT SpO₂!). byte[1] = 1 to start, 0 to stop. Measures HR + BP + SpO₂ + fatigue + stress + blood sugar + HRV in one go (~30–45 s). Done: `0xA3` |
+| **★ `0x24`** | notify | `CMD_RECEIVED_SENSOR_DATA` | **Combined measurement result** (NOT SpO₂ result). byte[1]=HR, byte[2]=systolic, byte[3]=diastolic, byte[4]=SpO₂%, byte[5]=fatigue, byte[6]=stress, byte[7]=blood sugar (mmol/L ×10), byte[8]=HRV. See full byte map below. |
 | `0x27` | notify | `CMD_NOTIFY_SENSOR_DATA` | Sensor measurement complete |
 | **★ `0x28`** | notify | `CMD_NOTIFY_BLOOD_DATA` | **Blood data notification** (NOT SpO₂ complete) |
 | **★ `0x3E`** | write | `CMD_TOGGLE_SPO2` | **SpO₂-only measurement**: byte[1] = 1 (start) / 0 (stop) |
@@ -136,23 +136,32 @@ Error responses have the high bit set (opcode `| 0x80`).
 | `0x9A` | Step goal set error |
 | `0xA3` | Blood pressure + combined measurement completed |
 
-## Blood Pressure Data Format
+## Combined Sensor Packet (`0x24`) — BP, blood sugar, stress, fatigue
 
-Blood pressure comes through the **custom 56FF protocol**, NOT standard BLE services.
+Blood pressure **and blood sugar** come through the **custom 56FF protocol**, NOT standard BLE
+services (`0x1810`/`0x1808` do not exist on the ring). One `0x24` notification carries every
+spot metric. This maps directly to the official SDK callback
+`onReceiveSensorData(i, i2, i3, i4, i5, i6, i7, i8)` (and its offline twin `onGetAdvSensorOfflineData`),
+verified in the decompiled Jring app (`DupMainActivity.onReceiveSensorData`).
 
-**Trigger:** Send `0x23` with byte[1] = 1
-**Response:** `0x24` notification with these byte offsets:
+**Trigger:** Send `0x23` with byte[1] = 1; stop with byte[1] = 0. Result arrives ~30–45 s later.
 
-| Byte | Value |
-|------|-------|
-| 0 | `0x24` (CMD_RECEIVED_SENSOR_DATA) |
-| 1 | Heart rate (BPM) |
-| 2 | **Systolic pressure** (mmHg) |
-| 3 | **Diastolic pressure** (mmHg) |
-| 4 | Blood oxygen SpO₂ (%) |
-| 5 | Fatigue / stress level |
+| Byte | SDK arg | Value | Notes |
+|------|---------|-------|-------|
+| 0 | — | `0x24` (CMD_RECEIVED_SENSOR_DATA) | |
+| 1 | `i`  | Heart rate (BPM) | |
+| 2 | `i2` | **Systolic** (mmHg) | |
+| 3 | `i3` | **Diastolic** (mmHg) | |
+| 4 | `i4` | SpO₂ (%) | |
+| 5 | `i5` | **Fatigue** (0–100) | `TYPE_FATIGUE = 13` |
+| 6 | `i6` | **Stress** (0–100) | `TYPE_STRESS = 17`; levels ≤30 Good / <60 Normal / <80 Mid / ≥80 High |
+| 7 | `i7` | **Blood sugar** = value ÷ 10 mmol/L | `TYPE_BLOOD_SUGAR = 18`; mg/dL = `(byte7 / 10) × 18.016`. e.g. `51 → 5.1 mmol/L → 91.88 mg/dL` |
+| 8 | `i8` | HRV (ms) | |
 
-The official app **hides blood pressure from the UI**, but Gadgetbridge's open-source implementation successfully extracts and displays it. Blood pressure values only make sense when > 0.
+Values only make sense when > 0. The official app gates each metric behind the `0x20`
+capability bitfield (`FUNCTION_BLOOD`/`FUNCTION_HAS_BLOODSUGAR`/`FUNCTION_TEMPERATURE`...);
+basic rings advertise BP/SpO₂/sugar/stress/fatigue but **not** temperature (no sensor — the
+official UI shows a 0 °C / 32 °F placeholder).
 
 ## Notification Subtypes (0x12)
 
@@ -170,18 +179,17 @@ When sending `CMD_ALERT_NOTIFICATION` (0x12), the notification app is encoded as
 | 7 | WhatsApp | 8 | Line |
 | 9 | KakaoTalk | | |
 
-## Blood Sugar (Glucose)
+## Blood Sugar (Glucose) — RESOLVED
 
-The official app claims to display blood sugar (e.g., 111.70 mg/dL). The APK decompilation found
-**NO standard BLE Glucose Service** (`0x1808`) or Blood Pressure Service (`0x1810`) UUIDs.
+The official app displays blood sugar (e.g. 91.88 mg/dL) and it comes from the **`0x24`
+combined sensor packet, byte[7]** — NOT a standard BLE Glucose Service (`0x1808` does not
+exist on the ring) and NOT the cloud. Confirmed in `DupMainActivity.onReceiveSensorData`:
+the SDK passes the raw byte as `i7`, the app computes `sugar = i7 / 10` (mmol/L), then the UI
+shows mg/dL via `× 18.016`. So **mg/dL = (byte7 / 10) × 18.016** — e.g. `51 → 5.1 → 91.88`.
 
-The `com.google.blood_glucose` references in the APK are for **Google Health Connect
-data export**, not BLE acquisition. Blood sugar values may be:
-1. Entered manually by the user (the app has blood sugar adjustment/settings UI)
-2. Derived through an as-yet-undecoded custom protocol command
-3. Fetched from the keeprapid.com cloud (server-side calculation)
-
-The `ACTION_NOTIFY_BLOOD_DATA` broadcast (command `0x28`) is the most likely source.
+The `com.google.blood_glucose` references in the APK are only for Google Health Connect export.
+Blood sugar here is an optically-derived estimate from the PPG sensor (not a true glucometer),
+gated by the `0x20` capability bit `FUNCTION_HAS_BLOODSUGAR`.
 
 ## SpO₂ Data Source
 

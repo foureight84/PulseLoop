@@ -22,6 +22,8 @@ class RingSyncCoordinator(
         private set
     var spo2State: MeasureState = MeasureState.IDLE
         private set
+    var combinedState: MeasureState = MeasureState.IDLE
+        private set
     var lastSyncAt: Long? = null
         private set
 
@@ -43,6 +45,7 @@ class RingSyncCoordinator(
     private val hrMeasureSeconds = 30L
     private val hrSettleSeconds = 4
     private val spo2MeasureSeconds = 40L
+    private val combinedMeasureSeconds = 45L
 
     private val engine: RingSyncEngine? get() = client.syncEngine
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -175,6 +178,22 @@ class RingSyncCoordinator(
         engine?.stopSpO2()
         spo2State = if (result != null) MeasureState.DONE else MeasureState.FAILED
         return result
+    }
+
+    /**
+     * Trigger the combined spot measurement (0x23). The ring replies with 0x24 carrying
+     * blood pressure, SpO₂, stress, fatigue and blood sugar in one packet; those decode
+     * through the normal event pipeline into Room and onto the Vitals/Today views.
+     * Runs for ~45s, matching the official app's combined measurement window.
+     */
+    suspend fun measureCombined() {
+        if (combinedState == MeasureState.MEASURING) return
+        if (!isConnected) { combinedState = MeasureState.FAILED; return }
+        combinedState = MeasureState.MEASURING
+        engine?.startCombinedMeasurement()
+        repeat(combinedMeasureSeconds.toInt()) { delay(1000) }
+        engine?.stopCombinedMeasurement()
+        combinedState = MeasureState.DONE
     }
 
     private suspend fun pollForValue(

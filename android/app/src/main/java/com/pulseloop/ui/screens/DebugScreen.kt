@@ -233,6 +233,7 @@ private fun labelFor(event: PulseEvent): String = when (event) {
         com.pulseloop.ring.MeasurementKind.HEART_RATE -> "HR History"
         com.pulseloop.ring.MeasurementKind.SPO2 -> "SpO₂ History"
         com.pulseloop.ring.MeasurementKind.STRESS -> "Stress"
+        com.pulseloop.ring.MeasurementKind.FATIGUE -> "Fatigue"
         com.pulseloop.ring.MeasurementKind.HRV -> "HRV"
         com.pulseloop.ring.MeasurementKind.TEMPERATURE -> "Temp"
         com.pulseloop.ring.MeasurementKind.BLOOD_PRESSURE_SYSTOLIC -> "BP Sys"
@@ -285,6 +286,7 @@ private fun colorFor(event: PulseEvent): Color = when (event) {
         com.pulseloop.ring.MeasurementKind.HEART_RATE -> Color(0xFFE53935)
         com.pulseloop.ring.MeasurementKind.SPO2 -> Color(0xFF1E88E5)
         com.pulseloop.ring.MeasurementKind.STRESS -> Color(0xFF8E24AA)
+        com.pulseloop.ring.MeasurementKind.FATIGUE -> Color(0xFFFB8C00)
         com.pulseloop.ring.MeasurementKind.HRV -> Color(0xFF43A047)
         com.pulseloop.ring.MeasurementKind.TEMPERATURE -> Color(0xFFFF7043)
         com.pulseloop.ring.MeasurementKind.BLOOD_PRESSURE_SYSTOLIC -> Color(0xFFE91E63)

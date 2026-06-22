@@ -20,6 +20,7 @@ enum class WearableCapability(val key: String) {
     // Colmi R02: richer metrics jring lacks
     REM_SLEEP("remSleep"),
     STRESS("stress"),
+    FATIGUE("fatigue"),
     HRV("hrv"),
     TEMPERATURE("temperature"),
 

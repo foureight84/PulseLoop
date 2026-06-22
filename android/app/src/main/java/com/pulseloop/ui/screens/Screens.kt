@@ -265,16 +265,40 @@ fun TodayScreen(
  * Shows historical trends: HR, SpO2, HRV, stress, temperature with real data from Room.
  */
 @Composable
-fun VitalsScreen(viewModel: VitalsViewModel? = null) {
+fun VitalsScreen(
+    viewModel: VitalsViewModel? = null,
+    coordinator: com.pulseloop.service.RingSyncCoordinator? = null,
+) {
     val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(VitalsViewModel.VitalsState()) })
+    val scope = rememberCoroutineScope()
+    var measuring by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("Vitals", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Text("Live measurements and trends", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Vitals", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("Live measurements and trends", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                // Combined spot measurement (0x23): one tap captures BP, SpO₂, stress,
+                // fatigue and blood sugar — the same flow the official app's "Measurement" button uses.
+                if (coordinator != null) {
+                    Button(
+                        enabled = !measuring,
+                        onClick = {
+                            measuring = true
+                            scope.launch {
+                                try { coordinator.measureCombined() } finally { measuring = false }
+                            }
+                        },
+                    ) {
+                        Text(if (measuring) "Measuring…" else "Measure")
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
         }
 
@@ -343,18 +367,45 @@ fun VitalsScreen(viewModel: VitalsViewModel? = null) {
                         Spacer(Modifier.height(4.dp))
                         if (state.stressSamples.isNotEmpty()) {
                             val latest = state.latestStress?.toInt() ?: 0
+                            // Thresholds match the official app (FragmentMain: <=30/<60/<80).
                             val label = when {
-                                latest <= 30 -> "Low"
-                                latest <= 60 -> "Moderate"
+                                latest <= 30 -> "Relaxed"
+                                latest < 60 -> "Normal"
+                                latest < 80 -> "Elevated"
                                 else -> "High"
                             }
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text("  $latest / 100", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
                             Spacer(Modifier.height(12.dp))
                             SimpleLineChart(points = state.stressSamples, color = androidx.compose.ui.graphics.Color(0xFF8E24AA))
                         } else {
-                            Text("No stress data yet — wear the ring through the day and sync.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("No stress data yet — take a measurement.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fatigue (capability-gated) — TYPE_FATIGUE (byte[5]) from the combined measurement
+        if (state.supportsFatigue) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Fatigue", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        if (state.fatigueSamples.isNotEmpty()) {
+                            val latest = state.latestFatigue?.toInt() ?: 0
+                            val label = if (latest < 50) "Light" else "Heavy"
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text("  $latest / 100", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            SimpleLineChart(points = state.fatigueSamples, color = androidx.compose.ui.graphics.Color(0xFFFB8C00))
+                        } else {
+                            Text("No fatigue data yet — take a measurement.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

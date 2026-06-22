@@ -195,11 +195,14 @@ object RingDecoder {
     // ── 0x24: Combined Sensor Data ────────────────────────────────────────
 
     /**
-     * Response to CMD_TOGGLE_BLOOD_PRESSURE (0x23).
-     * One notification carries all 5 metrics. Only emit events for values > 0.
+     * Response to CMD_TOGGLE_BLOOD_PRESSURE (0x23) — the combined spot measurement.
+     * Matches the official app's onReceiveSensorData(i, i2, i3, i4, i5, i6, i7, i8):
      *
-     * Offset:  0    1    2         3          4       5
-     * Value:  0x24  HR   systolic  diastolic  SpO2%   fatigue
+     * Offset:  0    1    2         3          4       5        6       7            8
+     * Value:  0x24 HR   systolic  diastolic  SpO2%   fatigue  stress  bloodSugar   HRV
+     *
+     * Blood sugar arrives as mmol/L × 10 (byte[7]); the official UI shows mg/dL via
+     * `mmol × 18.016`. e.g. 51 → 5.1 mmol/L → 91.88 mg/dL. Only emit values > 0.
      */
     private fun decodeCombinedSensor(bytes: ByteArray, now: Instant): List<RingDecodedEvent> {
         if (bytes.size < 6) return listOf(unknown(0x24, bytes))
@@ -210,6 +213,8 @@ object RingDecoder {
             val diastolic = bytes[3].toInt() and 0xFF
             val spo2 = bytes[4].toInt() and 0xFF
             val fatigue = bytes[5].toInt() and 0xFF
+            val stress = if (bytes.size > 6) bytes[6].toInt() and 0xFF else 0
+            val bloodSugarRaw = if (bytes.size > 7) bytes[7].toInt() and 0xFF else 0
 
             if (hr > 0) add(RingDecodedEvent.HeartRateSample(bpm = hr, _timestamp = now))
             if (systolic > 0 || diastolic > 0) add(RingDecodedEvent.HistoryMeasurement(
@@ -223,7 +228,20 @@ object RingDecoder {
                 _timestamp = now,
             ))
             if (spo2 in 80..100) add(RingDecodedEvent.Spo2Result(value = spo2, _timestamp = now))
-            if (fatigue > 0) add(RingDecodedEvent.StressSample(value = fatigue, _timestamp = now))
+            // Fatigue (byte[5], i5) and stress (byte[6], i6) are distinct metrics in the
+            // official app (TYPE_FATIGUE=13, TYPE_STRESS=17), both 0–100.
+            if (fatigue > 0) add(RingDecodedEvent.HistoryMeasurement(
+                kind_field = MeasurementKind.FATIGUE,
+                value = fatigue.toDouble(),
+                _timestamp = now,
+            ))
+            if (stress > 0) add(RingDecodedEvent.StressSample(value = stress, _timestamp = now))
+            // Blood sugar: byte[7] = mmol/L × 10 → store mg/dL = (raw / 10) × 18.016
+            if (bloodSugarRaw > 0) add(RingDecodedEvent.HistoryMeasurement(
+                kind_field = MeasurementKind.BLOOD_SUGAR,
+                value = (bloodSugarRaw / 10.0) * 18.016,
+                _timestamp = now,
+            ))
         }
     }
 

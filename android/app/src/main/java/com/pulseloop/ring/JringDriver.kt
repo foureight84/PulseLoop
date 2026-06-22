@@ -27,7 +27,9 @@ object JringCoordinator : WearableCoordinator {
         WearableCapability.SLEEP,
         WearableCapability.BATTERY,
         WearableCapability.BLOOD_PRESSURE,   // 0x23/0x24 combined measurement
-        WearableCapability.BLOOD_SUGAR,      // FUNCTION_HAS_BLOODSUGAR + standard Glucose service
+        WearableCapability.BLOOD_SUGAR,      // combined measurement byte[7] (mmol/L ×10)
+        WearableCapability.STRESS,           // combined measurement byte[6]
+        WearableCapability.FATIGUE,          // combined measurement byte[5]
         WearableCapability.MANUAL_HEART_RATE,
         WearableCapability.MANUAL_SPO2,
         WearableCapability.REALTIME_HEART_RATE,
@@ -105,12 +107,12 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
         writer?.enqueue(encoder.makeSpO2StopCommand())
     }
 
-    /** Combined BP + HR + SpO₂ + stress measurement (0x23). */
-    fun startCombinedMeasurement() {
+    /** Combined BP + HR + SpO₂ + stress + fatigue + blood-sugar measurement (0x23 → 0x24). */
+    override fun startCombinedMeasurement() {
         writer?.enqueue(encoder.makeCombinedMeasurementStart())
     }
 
-    fun stopCombinedMeasurement() {
+    override fun stopCombinedMeasurement() {
         writer?.enqueue(encoder.makeCombinedMeasurementStop())
     }
 

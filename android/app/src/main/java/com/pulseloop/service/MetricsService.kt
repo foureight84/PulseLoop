@@ -104,6 +104,7 @@ object MetricsService {
             MeasurementKind.HEART_RATE -> caps.contains(WearableCapability.HEART_RATE)
             MeasurementKind.SPO2 -> caps.contains(WearableCapability.SPO2)
             MeasurementKind.STRESS -> caps.contains(WearableCapability.STRESS)
+            MeasurementKind.FATIGUE -> caps.contains(WearableCapability.FATIGUE)
             MeasurementKind.HRV -> caps.contains(WearableCapability.HRV)
             MeasurementKind.TEMPERATURE -> caps.contains(WearableCapability.TEMPERATURE)
             MeasurementKind.BLOOD_PRESSURE_SYSTOLIC, MeasurementKind.BLOOD_PRESSURE_DIASTOLIC -> caps.contains(WearableCapability.BLOOD_PRESSURE)
@@ -118,6 +119,7 @@ object MetricsService {
             MeasurementKind.HEART_RATE -> (62..86).random().toDouble()
             MeasurementKind.SPO2 -> (96..99).random().toDouble()
             MeasurementKind.STRESS -> (20..70).random().toDouble()
+            MeasurementKind.FATIGUE -> (20..70).random().toDouble()
             MeasurementKind.HRV -> (30..90).random().toDouble()
             MeasurementKind.TEMPERATURE -> (330..360).random() / 10.0
             MeasurementKind.BLOOD_PRESSURE_SYSTOLIC -> (110..130).random().toDouble()

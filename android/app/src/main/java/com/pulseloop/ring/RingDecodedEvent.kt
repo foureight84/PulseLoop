@@ -9,6 +9,7 @@ enum class MeasurementKind(val key: String, val unit: String) {
     HEART_RATE("hr", "bpm"),
     SPO2("spo2", "%"),
     STRESS("stress", ""),
+    FATIGUE("fatigue", ""),
     HRV("hrv", "ms"),
     TEMPERATURE("temp", "°C"),
     BLOOD_PRESSURE_SYSTOLIC("bp_sys", "mmHg"),

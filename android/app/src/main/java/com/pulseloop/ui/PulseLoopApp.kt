@@ -158,7 +158,7 @@ fun PulseLoopApp() {
                 modifier = Modifier.padding(padding),
             ) {
                 composable("today") { TodayScreen(navController, todayVM, coordinator) }
-                composable("vitals") { VitalsScreen(viewModel = vitalsVM) }
+                composable("vitals") { VitalsScreen(viewModel = vitalsVM, coordinator = coordinator) }
                 composable("sleep") { SleepScreen(navController = navController, viewModel = sleepVM) }
                 composable("activity") { ActivityScreen(navController = navController, viewModel = activityVM) }
                 composable("coach") { CoachScreen(navController = navController, viewModel = coachVM) }

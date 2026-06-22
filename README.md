@@ -111,6 +111,8 @@ Major functional areas, by device:
 ³ Calories from Colmi history are currently hidden pending verification of the
   raw value; steps and distance are shown.
 
+**Important data latency note:** The ring is command-response, not continuous streaming. After the initial connect sync, new data only arrives when you manually sync (pull-to-refresh or tap the sync icon). The "2-second refresh" you see in the app is polling the local database, not the ring itself. For Colmi rings, live activity notifications arrive autonomously while the ring is worn. See **[docs/ring-protocol.md](docs/ring-protocol.md)** for the full protocol timing.
+
 ---
 
 ## How it works
@@ -126,6 +128,25 @@ Major functional areas, by device:
 **The AI coach:** an agentic loop that calls tools to read your local data, then answers in a structured format.
 
 ![AI coach](docs/AI-coach-design.png)
+
+### Ring communication layer
+
+The ring uses a **command-response protocol** — it does not stream data continuously. Every reading (steps, HR, SpO₂, sleep) arrives only when the app explicitly queries the ring. There is no encryption or signing; all packets are cleartext 20-byte frames over a single custom GATT service (`0x56FF`).
+
+| Property | Value |
+|---|---|
+| Service UUID | `000056ff-0000-1000-8000-00805f9b34fb` |
+| Write characteristic | `000033f3-...` (central → ring) |
+| Notify characteristic | `000033f4-...` (ring → central) |
+| Packet size | Fixed 20 bytes (byte 0 = command ID, bytes 1-19 = payload, zero-padded) |
+| Integer encoding | Little-endian |
+| Encryption | None (cleartext) |
+
+**Key finding:** The ring only responds to commands. Activity data comes from `0x02` queries, sleep from `0x10`, live HR from `0x14` (warm-up ~12s, then ~1 sample/sec), and SpO₂ from `0x23` spot measurements (25-40s window). After the initial connect sync, no new data arrives unless you explicitly sync again. The ring was designed for periodic check-in, not continuous streaming.
+
+Full protocol reference with every command ID, payload layout, and data frequency notes: **[docs/ring-protocol.md](docs/ring-protocol.md)**.
+
+> The protocol was reverse-engineered by analyzing BLE traffic between the ring and the official JRing app using an nRF52840 dongle + Wireshark. See [sakshambhutani.xyz/hacking/2_hacking](https://sakshambhutani.xyz/hacking/2_hacking/) for the full write-up, [github.com/saksham2001/Smart-Ring-Protocol](https://github.com/saksham2001/Smart-Ring-Protocol/) for lab notes and a Python CLI.
 
 ---
 

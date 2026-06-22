@@ -69,12 +69,15 @@ object RingDecoder {
         val address = if (bytes.size >= 9) {
             bytes.slice(3..8).joinToString(":") { String.format("%02X", it) }
         } else null
-        // Firmware hex from bytes[9-12] as two LE u16 values
-        // e.g. bytes 3a 00 2a 00 → part1=0x003A, part2=0x002A → "003A002A"
+        // Full firmware string, exactly as the official app builds it in onGetDeviceInfo:
+        //   CID(bytes[9-10]) + DID(bytes[11-12]) + "V" + version(bytes[1-2], LE u16)
+        // For 0c 8a 00 .. 3a 00 2a 00 → "003A" + "002A" + "V" + 138 = "003A002AV138".
+        // The version is bytes[1-2], NOT the 0xF6 packet (which carries a different value).
         val fw = if (bytes.size >= 13) {
-            val part1 = ((bytes[10].toInt() and 0xFF) shl 8) or (bytes[9].toInt() and 0xFF)
-            val part2 = ((bytes[12].toInt() and 0xFF) shl 8) or (bytes[11].toInt() and 0xFF)
-            String.format("%04X%04X", part1, part2)
+            val version = ((bytes[2].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)
+            val cid = ((bytes[10].toInt() and 0xFF) shl 8) or (bytes[9].toInt() and 0xFF)
+            val did = ((bytes[12].toInt() and 0xFF) shl 8) or (bytes[11].toInt() and 0xFF)
+            String.format("%04X%04XV%d", cid, did, version)
         } else null
         return RingDecodedEvent.Status(address = address, firmware = fw)
     }

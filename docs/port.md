@@ -409,31 +409,30 @@ UI (SwiftUI) ─────────────────────┘
 
 ---
 
-## Final Verification (119 iOS → 52 Android files)
+## Final Verification (119 iOS → 56 Android files)
 
-### ✅ Fully Ported (91%)
+### ✅ Fully Ported (92%)
 - Ring Protocol (12/12 files): decoding, encoding, drivers, coordinators, sync engines, event bridge
 - Wearables (3/4): Capability, Coordinator, Driver
 - Models + Persistence (3/3): all SwiftData entities → Room
 - BLE + Events (2/2): RingBLEClient, PulseEventBus/EventPersistenceSubscriber
-- Coach Core (14/16): OpenAI client, orchestrator, tools, prompts, response schema,
-  context builder, data access, fallbacks, JSON repair (embedded in CoachResponseParser)
-- Services (6/9): sync coordinator, workout, GPS, sensor polling, foreground service (Live Activity replacement)
+- Coach Core (15/16): OpenAI client, orchestrator, tools, prompts, response schema,
+  context builder, data access, fallbacks, JSON repair, analysis engine
+- Services (8/9): sync coordinator, workout, GPS, sensor polling, foreground service,
+  sleep insights, derived summaries
 - UI Screens (10/11): all 5 dashboards + pairing + settings + debug + onboarding + record
 - Design System (2/4): Charts, MetricTile
 - App entry (2/2): Theme, MainActivity/PulseLoopApp
 - Settings (1/1): ApiKeyStore
 - Notifications (1/7): basic daily check-in worker
-- Tests (1/13): ColmiDecoderTest (24 tests)
+- Tests (5/13): ColmiDecoderTest, AnalysisEngineTest, CoachResponseParserTest, CoachSchemaTest, SleepInsightsTest
 
-### ❌ Not Ported (9%) — Low Impact
+### ❌ Not Ported (8%) — Low Impact
 | Category | Files | Reason |
 |---|---|---|
 | Coach Summaries | 7 | Background analysis pipeline — nice-to-have, not core flow |
 | Coach Notifications (details) | 5 | LLM-generated content for notifications — future enhancement |
-| PulseServices.swift | 1 | MetricsService daily summary (800 lines) — complex, mock data works for now |
-| DerivedSummaries.swift | 1 | MetricKey/MetricRange enums |
-| SleepInsights.swift | 1 | Sleep scoring and analysis |
+| PulseServices.swift | 1 | MetricsService daily summary (800 lines) — mostly covered by TodayViewModel + CoachContextBuilder |
 | Repositories.swift | 1 | ActivityRepository/DeviceRepository wrappers (DAOs exist) |
 | WearableModel.swift | 1 | SwiftUI view (rendered in pairing screen differently) |
 | RingArtView.swift | 1 | SwiftUI Canvas component |
@@ -441,7 +440,7 @@ UI (SwiftUI) ─────────────────────┘
 | MeasurementModal.swift | 1 | Spot measurement modal (can trigger from coach) |
 | Diagnostics (3 files) | 3 | Debug exporter/subscriber/logger |
 | RecordViews.swift (full) | 1 | Post-workout summary + detail (partial in RecordScreen) |
-| 12 test files | 12 | 11 test suites not ported beyond ColmiDecoderTest |
+| 8 test files | 8 | Remaining test suites (DataAccess, ActivityService, etc.) |
 
 ### Phase 10: App Wiring ✅ COMPLETE
 - [x] Port `CoachDataAccess.kt` — real Room queries for coach tools (replaces mocks)
@@ -461,6 +460,18 @@ UI (SwiftUI) ─────────────────────┘
 - [x] Wire RecordScreen to LiveWorkoutManager via record route
 - [x] MainActivity lifecycle: notification channel, permissions, onResume scheduling
 - **Committed:** branch `feature/android_phase10` — 10 files, 930 lines
+- **Code review:** (pending)
+
+### Phase 11: Tests & Sleep Insights ✅ COMPLETE
+- [x] Port `AnalysisEngine.kt` — trend, correlation, outliers, distribution, comparison (164 lines)
+- [x] Port `DerivedSummaries.kt` — MetricKey, MetricRange, MetricSample, data classes (132 lines)
+- [x] Port `SleepInsights.kt` — sleep scoring, formatting, coach interpretation, histograms (356 lines)
+- [x] Update AnalysisTools.analyze_trend to use AnalysisEngine.trend
+- [x] Create `AnalysisEngineTest.kt` — 16 tests (trend, correlation, outliers, distribution)
+- [x] Create `CoachResponseParserTest.kt` — 8 tests (parsing, code fences, fallbacks)
+- [x] Create `CoachSchemaTest.kt` — 7 tests (chart round-trips, y-domain)
+- [x] Create `SleepInsightsTest.kt` — 20 tests (scoring, formatting, insights, histograms)
+- **Committed:** branch `feature/android_phase11` — 8 files, 1246 lines
 - **Code review:** (pending)
 
 ---
@@ -672,14 +683,14 @@ PulseLoopAndroid/
 - Auto-seed demo data on first launch
 - Notification permissions handling (Android 13+)
 
-### What's Next (Phase 11+)
-1. **MetricsService.kt** — daily summary + trends computation
-2. **CoachSummaryCoordinator.kt** — background analysis pipeline
-3. **SleepInsights.kt** — sleep scoring and stage analysis
-4. **Remaining 11 test suites** — coach tool, analysis, action, summary tests
-5. **Google Maps Compose** — replace placeholder in WorkoutMapView
-6. **Post-workout detail view** — expand RecordScreen with summary
-7. **LLM-generated notification content** — real AI check-in messages
+### What's Next (Phase 11+) ✅ Phase 11 COMPLETE
+1. ✅ **AnalysisEngine.kt** — trend, correlation, outliers, distribution analysis (164 lines)
+2. ✅ **DerivedSummaries.kt** — MetricKey, MetricRange, all summary data classes (132 lines)
+3. ✅ **SleepInsights.kt** — sleep scoring, coach interpretation, histograms (356 lines)
+4. ✅ **4 test suites** — AnalysisEngineTest, CoachResponseParserTest, CoachSchemaTest, SleepInsightsTest (44 tests total)
+5. ⬜ **Google Maps Compose** — replace placeholder in WorkoutMapView
+6. ⬜ **Post-workout detail view** — expand RecordScreen with summary
+7. ⬜ **LLM-generated notification content** — real AI check-in messages
 
 ### Repo
 - **Remote**: `git@github.com:foureight84/PulseLoop.git`

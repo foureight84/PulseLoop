@@ -165,25 +165,9 @@ object AnalysisTools {
         } catch (_: Exception) { null }
         if (vals.isNullOrEmpty()) return@CoachToolDef ToolResult("""{"error":"no values provided"}""", isError = true)
 
-        val n = vals.size
-        val mean = vals.average()
-        val xs = (0 until n).map { it.toDouble() }
-        val slope = simpleLinearSlope(xs, vals)
-        val direction = when {
-            slope > 0.5 -> "increasing"
-            slope < -0.5 -> "decreasing"
-            else -> "stable"
-        }
-        ToolResult("""{"metric":"steps","slope":$slope,"direction":"$direction","mean":$mean,"n":$n,"confidence":"medium"}""")
-    }
-
-    private fun simpleLinearSlope(xs: List<Double>, ys: List<Double>): Double {
-        val n = xs.size
-        val sumX = xs.sum(); val sumY = ys.sum()
-        val sumXY = xs.zip(ys).sumOf { it.first * it.second }
-        val sumX2 = xs.sumOf { it * it }
-        val denom = n * sumX2 - sumX * sumX
-        return if (denom != 0.0) (n * sumXY - sumX * sumY) / denom else 0.0
+        val result = AnalysisEngine.trend(vals)
+        val metric = try { json.decodeFromString<Map<String, String>>(args)["metric"] ?: "values" } catch (_: Exception) { "values" }
+        ToolResult("""{"metric":"$metric","slope":${result.slopePerDay},"direction":"${result.direction}","mean":${result.average ?: 0.0},"n":${result.count},"confidence":"medium"}""")
     }
 }
 

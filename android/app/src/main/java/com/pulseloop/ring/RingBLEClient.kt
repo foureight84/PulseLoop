@@ -310,11 +310,12 @@ class RingBLEClient(private val context: Context) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         bluetoothGatt = gatt
-                        // Trigger OS-level bonding (matches official app behavior).
-                        // Shows system pairing dialog so the ring is properly paired
-                        // at the OS level. This makes Forget+RingSyncWorker work
-                        // correctly without needing a phone restart.
-                        try { gatt.device.createBond() } catch (_: Exception) {}
+                        // Only trigger bonding if not already bonded.
+                        // On reconnect (e.g. after phone idle/sleep), the bond
+                        // persists — no need to show the pairing dialog again.
+                        if (gatt.device.bondState != BluetoothDevice.BOND_BONDED) {
+                            try { gatt.device.createBond() } catch (_: Exception) {}
+                        }
                         gatt.requestMtu(512)
                         gatt.discoverServices()
                     } else {

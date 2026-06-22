@@ -235,6 +235,14 @@ class ColmiSyncEngine(
         // Colmi goals write left minimal pending verification
     }
 
+    override fun powerOff() {
+        writer?.enqueue(encoder.powerOff())
+    }
+
+    override fun factoryReset() {
+        writer?.enqueue(encoder.factoryReset())
+    }
+
     fun destroy() {
         scope.cancel()
     }

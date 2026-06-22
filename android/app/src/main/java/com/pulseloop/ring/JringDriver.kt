@@ -100,4 +100,8 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
     override fun setGoal(steps: Int) {
         writer?.enqueue(encoder.makeGoalCommand(steps))
     }
+
+    // Jring has no power-off or factory-reset capabilities — no-ops
+    override fun powerOff() {}
+    override fun factoryReset() {}
 }

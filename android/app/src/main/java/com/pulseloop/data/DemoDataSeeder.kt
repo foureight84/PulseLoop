@@ -15,14 +15,8 @@ object DemoDataSeeder {
         val now = Instant.now()
         val today = now.truncatedTo(ChronoUnit.DAYS)
 
-        // Device
-        db.deviceDao().upsert(DeviceEntity(
-            name = "SMART_RING",
-            batteryPercent = 85,
-            stateRaw = "CONNECTED",
-            deviceTypeRaw = "JRING",
-            capabilitiesRaw = "heartRate,spo2,steps,sleep,battery,manualHeartRate,manualSpo2,realtimeHeartRate,findDevice",
-        ))
+        // Device — do NOT create a fake connected device; the real ring creates its own
+        // when it connects. We seed a disconnected stub so the UI shows "no ring" state.
 
         // User profile
         db.userProfileDao().upsert(UserProfileEntity(

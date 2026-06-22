@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -29,7 +30,10 @@ import kotlinx.coroutines.launch
  * live measurements, coach memory list, notifications, demo data.
  */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    bleClient: com.pulseloop.ring.RingBLEClient? = null,
+    coordinator: com.pulseloop.service.RingSyncCoordinator? = null,
+) {
     val context = LocalContext.current
     val keyStore = remember { ApiKeyStore(context) }
     val scope = rememberCoroutineScope()
@@ -302,6 +306,69 @@ fun SettingsScreen() {
                                         Icon(Icons.Filled.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ring — connection management & unpair
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Ring", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                val device = remember { mutableStateOf<com.pulseloop.data.entity.DeviceEntity?>(null) }
+                LaunchedEffect(Unit) {
+                    device.value = db.deviceDao().current()
+                }
+                val isConnected = device.value?.stateRaw == "CONNECTED"
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Bluetooth, null, Modifier.size(18.dp),
+                        tint = if (isConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (isConnected) "Connected — ${device.value?.name ?: "Ring"} · ${device.value?.batteryPercent ?: 0}%"
+                        else device.value?.let { "Last seen: ${it.name}" } ?: "No ring paired",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (device.value != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    // Send ring-side unpair commands, then disconnect & clear DB
+                                    if (coordinator != null && isConnected) {
+                                        coordinator.forgetRing {
+                                            scope.launch {
+                                                db.deviceDao().clear()
+                                                device.value = null
+                                            }
+                                        }
+                                    } else {
+                                        bleClient?.forget()
+                                        db.deviceDao().clear()
+                                        device.value = null
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Icon(Icons.Filled.DeleteForever, null, Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Forget Ring")
+                        }
+                        if (isConnected) {
+                            OutlinedButton(
+                                onClick = { scope.launch { bleClient?.disconnect() } },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Disconnect")
                             }
                         }
                     }

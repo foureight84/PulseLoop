@@ -110,6 +110,25 @@ class RingSyncCoordinator(
         engine?.findDevice()
     }
 
+    /** Send ring-side unpair commands (power-off, factory reset if supported),
+     *  then disconnect and forget. */
+    fun forgetRing(onCleared: () -> Unit) {
+        val caps = client.state.value.activeCapabilities
+        if (caps.contains(WearableCapability.POWER_OFF)) {
+            engine?.powerOff()
+        }
+        if (caps.contains(WearableCapability.FACTORY_RESET)) {
+            engine?.factoryReset()
+        }
+        // Give the ring a moment to process, then disconnect + forget
+        scope.launch {
+            kotlinx.coroutines.delay(500)
+            client.forget()
+            stop()
+            onCleared()
+        }
+    }
+
     fun setGoal(steps: Int) {
         if (isConnected) engine?.setGoal(steps)
         scope.launch {

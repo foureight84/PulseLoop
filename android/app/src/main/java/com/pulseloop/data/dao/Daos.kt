@@ -32,6 +32,12 @@ interface MeasurementDao {
 
     @Insert
     suspend fun insert(measurement: MeasurementEntity)
+
+    @Query("DELETE FROM measurements WHERE sourceRaw = 'demo'")
+    suspend fun clearDemo()
+
+    @Query("DELETE FROM measurements")
+    suspend fun clear()
 }
 
 @Dao
@@ -50,6 +56,12 @@ interface ActivityDailyDao {
 
     @Upsert
     suspend fun upsert(entry: ActivityDailyEntity)
+
+    @Query("DELETE FROM activity_daily")
+    suspend fun clear()
+
+    @Query("DELETE FROM activity_daily WHERE source = 'demo'")
+    suspend fun clearDemo()
 }
 
 @Dao
@@ -89,6 +101,9 @@ interface SleepSessionDao {
 
     @Upsert
     suspend fun upsert(session: SleepSessionEntity)
+
+    @Query("DELETE FROM sleep_sessions")
+    suspend fun clear()
 }
 
 @Dao

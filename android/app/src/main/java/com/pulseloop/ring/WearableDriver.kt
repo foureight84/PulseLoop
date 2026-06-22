@@ -47,6 +47,8 @@ interface RingSyncEngine {
     fun stopSpO2()
     fun findDevice()
     fun setGoal(steps: Int)
+    fun powerOff()
+    fun factoryReset()
 }
 
 /**

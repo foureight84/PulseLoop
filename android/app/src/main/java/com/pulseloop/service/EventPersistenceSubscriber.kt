@@ -29,7 +29,12 @@ class EventPersistenceSubscriber(
             is PulseEvent.DeviceStateChanged -> {
                 val device = db.deviceDao().current() ?: DeviceEntity()
                 val state = when (event.state) {
-                    RingConnectionState.CONNECTED -> "CONNECTED"
+                    RingConnectionState.CONNECTED -> {
+                        // Clear demo data on first real ring connection
+                        db.measurementDao().clearDemo()
+                        db.activityDailyDao().clearDemo()
+                        "CONNECTED"
+                    }
                     RingConnectionState.DISCONNECTED -> "DISCONNECTED"
                     RingConnectionState.CONNECTING -> "CONNECTING"
                     RingConnectionState.SCANNING -> "SCANNING"

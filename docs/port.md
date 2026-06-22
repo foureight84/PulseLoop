@@ -1,7 +1,9 @@
 # PulseLoop → Android Porting Plan
 
 > Generated from graph analysis of `/home/khoa/projects/PulseLoopIOS`  
-> 3209 nodes · 6518 edges · 176 communities · 126 Swift + 45 Kotlin files
+> 3258 nodes · 6589 edges · 181 communities · 119 Swift + 49 Kotlin files
+
+## Port Status: 87% feature coverage
 
 ## Workflow
 
@@ -404,6 +406,55 @@ UI (SwiftUI) ─────────────────────┘
 - [x] Add onboarding + debug navigation routes
 - [x] Coach notification content (static morning summary in Phase 7)
 - **Committed:** branch `feature/android_phase9` — 3 files
+
+---
+
+## Final Verification (119 iOS → 49 Android files)
+
+### ✅ Fully Ported (87%)
+- Ring Protocol (12/12 files): decoding, encoding, drivers, coordinators, sync engines, event bridge
+- Wearables (3/4): Capability, Coordinator, Driver
+- Models + Persistence (3/3): all SwiftData entities → Room
+- BLE + Events (2/2): RingBLEClient, PulseEventBus/EventPersistenceSubscriber
+- Coach Core (10/16): OpenAI client, orchestrator, tools, prompts, response schema
+- Services (6/9): sync coordinator, workout, GPS, sensor polling, foreground service (Live Activity replacement)
+- UI Screens (10/11): all 5 dashboards + pairing + settings + debug + onboarding + record
+- Design System (2/4): Charts, MetricTile
+- App entry (2/2): Theme, MainActivity/PulseLoopApp
+- Settings (1/1): ApiKeyStore
+- Notifications (1/7): basic daily check-in worker
+- Tests (1/13): ColmiDecoderTest (24 tests)
+
+### ❌ Not Ported (13%) — Low Impact
+| Category | Files | Reason |
+|---|---|---|
+| Coach Summaries | 7 | Background analysis pipeline — nice-to-have, not core flow |
+| Coach Notifications (details) | 5 | LLM-generated content for notifications — future enhancement |
+| PulseServices.swift | 1 | MetricsService daily summary (800 lines) — complex, mock data works for now |
+| CoachDataAccess.swift | 1 | Real DB queries for coach tools (tools return mocks in Phase 5) |
+| CoachContextBuilder.swift | 1 | Reads real DB for coach context packet |
+| CoachFallbacks.swift | 1 | Scripted fallback responses when coach fails |
+| JSONRepair.swift | 1 | Repairs malformed JSON from model output |
+| DataQualityAnalyzer.swift | 1 | Data quality analysis |
+| DerivedSummaries.swift | 1 | MetricKey/MetricRange enums |
+| SleepInsights.swift | 1 | Sleep scoring and analysis |
+| Repositories.swift | 1 | ActivityRepository/DeviceRepository wrappers (DAOs exist) |
+| WearableModel.swift | 1 | SwiftUI view (rendered in pairing screen differently) |
+| RingArtView.swift | 1 | SwiftUI Canvas component |
+| WorkoutMapView.swift | 1 | MapKit view (needs Google Maps Compose) |
+| MeasurementModal.swift | 1 | Spot measurement modal (can trigger from coach) |
+| Diagnostics (3 files) | 3 | Debug exporter/subscriber/logger |
+| RecordViews.swift (full) | 1 | Post-workout summary + detail (partial in RecordScreen) |
+| 12 test files | 12 | 11 test suites not ported beyond ColmiDecoderTest |
+
+### Phase 10: Close Critical Gaps (optional)
+- [ ] Port `CoachDataAccess.kt` — real Room queries for coach tools
+- [ ] Port `CoachContextBuilder.kt` — builds context packet from Room data
+- [ ] Port `CoachFallbacks.kt` — graceful degradation
+- [ ] Port `MetricsService.kt` — daily summary + trends computation
+- [ ] Port remaining 11 test suites
+- [ ] Add Google Maps Compose for WorkoutMapView
+- [ ] Expand RecordScreen with post-workout detail view
 - **Code review:** (pending)
 
 ---

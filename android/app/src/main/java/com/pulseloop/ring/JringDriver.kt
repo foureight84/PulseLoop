@@ -1,5 +1,7 @@
 package com.pulseloop.ring
 
+@OptIn(ExperimentalStdlibApi::class)
+
 /**
  * Ported from [JringCoordinator] in JringCoordinator.swift.
  * Coordinator for the original "jring" (SMART_RING, service 000056ff…).

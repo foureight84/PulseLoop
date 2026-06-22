@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.pulseloop.ui.components.MetricTile
 
 /**
@@ -18,14 +19,21 @@ import com.pulseloop.ui.components.MetricTile
  * heart rate, SpO2, plus a mini sparkline for each.
  */
 @Composable
-fun TodayScreen() {
+fun TodayScreen(navController: androidx.navigation.NavController? = null) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("Today", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Today", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                if (navController != null) {
+                    IconButton(onClick = { navController.navigate("pairing") }) {
+                        Icon(Icons.Filled.Bluetooth, "Pair Ring", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
         }
 

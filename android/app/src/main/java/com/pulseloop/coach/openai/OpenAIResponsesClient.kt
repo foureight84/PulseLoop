@@ -2,6 +2,7 @@ package com.pulseloop.coach.openai
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import okhttp3.MediaType.Companion.toMediaType
 
 /**
  * Ported from [OpenAIResponsesClient] in OpenAIResponsesClient.swift.
@@ -11,6 +12,8 @@ class OpenAIResponsesClient(
     private val apiKey: String,
     private val endpoint: String = "https://api.openai.com/v1/responses",
 ) {
+    private val jsonMediaType = "application/json".toMediaType()
+
     private val client = okhttp3.OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
@@ -21,7 +24,7 @@ class OpenAIResponsesClient(
 
         val request = okhttp3.Request.Builder()
             .url(endpoint)
-            .post(okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/json"), requestBody))
+            .post(okhttp3.RequestBody.create(jsonMediaType, requestBody))
             .header("Authorization", "Bearer $apiKey")
             .build()
 
@@ -64,10 +67,8 @@ data class OpenAIResponse(
 ) {
     /** The final assistant message text. */
     val outputText: String
-        get() = output.filterIsInstance<MessageOutput>().lastOrNull()?.content
-            ?.filter { it is TextContent }.joinToString("\n") {
-                (it as TextContent).text
-            } ?: ""
+        get() = output.filterIsInstance<MessageOutput>().lastOrNull()
+            ?.content?.filterIsInstance<TextContent>()?.joinToString("\n") { it.text } ?: ""
 
     /** Function call items from the output. */
     val functionCalls: List<FunctionCallOutput>

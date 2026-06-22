@@ -7,7 +7,7 @@ import kotlinx.serialization.json.*
  * Read-only retrieval tools.
  */
 object RetrievalTools {
-    val all = listOf(dailySummary, metricSeries, sleepSummary, profile)
+    val all: List<CoachToolDef> by lazy { listOf(dailySummary, metricSeries, sleepSummary, profile) }
 
     private val profile = CoachToolDef(
         name = "get_profile_context",
@@ -74,7 +74,7 @@ object RetrievalTools {
  * Deterministic analysis tools (trend, correlation, outliers).
  */
 object AnalysisTools {
-    val all = listOf(analyzeTrend)
+    val all: List<CoachToolDef> by lazy { listOf(analyzeTrend) }
 
     private val analyzeTrend = CoachToolDef(
         name = "analyze_trend",
@@ -125,7 +125,7 @@ object AnalysisTools {
  * Ported from [ChartTools] in ChartTools.swift.
  */
 object ChartTools {
-    val all = listOf(prepareChart)
+    val all: List<CoachToolDef> by lazy { listOf(prepareChart) }
 
     private val prepareChart = CoachToolDef(
         name = "prepare_chart",
@@ -167,7 +167,7 @@ object ChartTools {
  * Ported from [MemoryTools] in MemoryTools.swift.
  */
 object MemoryTools {
-    val all = listOf(saveMemory)
+    val all: List<CoachToolDef> by lazy { listOf(saveMemory) }
 
     private val saveMemory = CoachToolDef(
         name = "save_memory",
@@ -201,8 +201,8 @@ object WebSearchTool {
  * Ported from [ActionTools] in ActionTools.swift.
  */
 object ActionTools {
-    val writeTools = listOf(setGoal)
-    val measurementTools = listOf(triggerMeasurement)
+    val writeTools: List<CoachToolDef> by lazy { listOf(setGoal) }
+    val measurementTools: List<CoachToolDef> by lazy { listOf(triggerMeasurement) }
 
     private val setGoal = CoachToolDef(
         name = "set_goal",

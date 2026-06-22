@@ -141,7 +141,7 @@ class RingBLEClient(private val context: Context) {
 
     fun connectTo(id: String) {
         val target = discoveredPeripherals[id] ?: run {
-            try { bluetoothAdapter.getRemoteDevice(UUID.fromString(id)) } catch (_: Exception) { null }
+            try { bluetoothAdapter.getRemoteDevice(id) } catch (_: Exception) { null }
         } ?: run {
             updateState { copy(lastError = "Ring no longer available; scan again.") }
             return
@@ -154,7 +154,7 @@ class RingBLEClient(private val context: Context) {
         if (!bluetoothAdapter.isEnabled) return
         val lastId = lastKnownIdentifier ?: return
         val device = try {
-            bluetoothAdapter.getRemoteDevice(UUID.fromString(lastId))
+            bluetoothAdapter.getRemoteDevice(lastId)
         } catch (_: Exception) { null }
         if (device != null) {
             beginConnect(device, lastKnownDeviceType)
@@ -250,10 +250,7 @@ class RingBLEClient(private val context: Context) {
         // Iterate all manufacturer-specific data entries to find a match
         var mfg: ByteArray? = null
         scanRecord?.manufacturerSpecificData?.let { data ->
-            for (entry in data.entries) {
-                mfg = entry.value
-                break  // use the first manufacturer data entry
-            }
+            if (data.size() > 0) mfg = data.valueAt(0)
         }
         val info = AdvertisementInfo(serviceUUIDs, mfg)
         return coordinators.firstOrNull { it.matches(name, info) }?.deviceType

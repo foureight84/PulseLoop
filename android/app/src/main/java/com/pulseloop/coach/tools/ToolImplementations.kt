@@ -272,7 +272,9 @@ object WebSearchTool {
  * Ported from [ActionTools] in ActionTools.swift.
  */
 object ActionTools {
-    val writeTools: List<CoachToolDef> by lazy { listOf(setGoal) }
+    val writeTools: List<CoachToolDef> by lazy {
+        listOf(setGoal, logUserNote, logActivityCorrection, createActivitySession, updateActivitySession, deleteActivitySession)
+    }
     val measurementTools: List<CoachToolDef> by lazy { listOf(triggerMeasurement) }
 
     private val setGoal = CoachToolDef(
@@ -346,5 +348,235 @@ object ActionTools {
                 ToolResult("""{"status":"failed","kind":"$kind","note":"Measurement did not return a reading. Ring may be out of range."}""")
             }
         }
+    }
+
+    // ── log_user_note ──────────────────────────────────────────────────
+
+    private val logUserNote = CoachToolDef(
+        name = "log_user_note",
+        publicLabel = "Noting that down",
+        description = "Save a dated note about symptoms, perceived exertion, mood, injury, sleep, diet, or activity context.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "note_type" to JsonObject(mapOf("type" to JsonPrimitive("string"), "enum" to JsonArray(listOf("symptom", "injury", "activity_context", "sleep_context", "diet_context", "mood", "general").map { JsonPrimitive(it) }))),
+                "content" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("date"), JsonPrimitive("note_type"), JsonPrimitive("content"))),
+            "additionalProperties" to JsonPrimitive(false),
+        )),
+    ) { args, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, String>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val noteType = params["note_type"] ?: "general"
+        val date = params["date"] ?: ""
+        val content = params["content"] ?: ""
+        kotlinx.coroutines.runBlocking {
+            db.coachMemoryDao().upsert(com.pulseloop.data.entity.CoachMemoryEntity(
+                key = "$noteType · $date",
+                value = content,
+                memoryType = "health_note",
+                importance = 2,
+                updatedAt = System.currentTimeMillis(),
+            ))
+        }
+        ToolResult("""{"ok":true,"note_type":"$noteType"}""")
+    }
+
+    // ── log_activity_correction ─────────────────────────────────────────
+
+    private val logActivityCorrection = CoachToolDef(
+        name = "log_activity_correction",
+        publicLabel = "Logging your activity",
+        description = "Log or correct a user-stated activity the ring missed or misclassified.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "activity_type" to JsonObject(mapOf("type" to JsonPrimitive("string"), "enum" to JsonArray(listOf("walk", "run", "cycle", "gym", "squash", "sport", "yoga", "hike", "other").map { JsonPrimitive(it) }))),
+                "duration_min" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("number"), JsonPrimitive("null"))))),
+                "distance_km" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("number"), JsonPrimitive("null"))))),
+                "intensity" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("string"), JsonPrimitive("null"))), "enum" to JsonArray(listOf("easy", "moderate", "hard").map { JsonPrimitive(it) }))),
+                "notes" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("date"), JsonPrimitive("activity_type"), JsonPrimitive("duration_min"), JsonPrimitive("distance_km"), JsonPrimitive("intensity"), JsonPrimitive("notes"))),
+            "additionalProperties" to JsonPrimitive(false),
+        )),
+    ) { args, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, JsonElement>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val activityType = params["activity_type"]?.jsonPrimitive?.content ?: "other"
+        val date = params["date"]?.jsonPrimitive?.content ?: ""
+        val notes = params["notes"]?.jsonPrimitive?.content ?: ""
+        var summary = "$activityType on $date"
+        val durMin = params["duration_min"]?.jsonPrimitive?.doubleOrNull
+        if (durMin != null) summary += ", ${durMin.toInt()} min"
+        val distKm = params["distance_km"]?.jsonPrimitive?.doubleOrNull
+        if (distKm != null) summary += ", $distKm km"
+        kotlinx.coroutines.runBlocking {
+            db.coachMemoryDao().upsert(com.pulseloop.data.entity.CoachMemoryEntity(
+                key = "Ring-missed: $summary",
+                value = notes,
+                memoryType = "manual_correction",
+                importance = 3,
+                updatedAt = System.currentTimeMillis(),
+            ))
+        }
+        ToolResult("""{"ok":true,"logged":"$summary"}""")
+    }
+
+    // ── create_activity_session_from_description ────────────────────────
+
+    private val createActivitySession = CoachToolDef(
+        name = "create_activity_session_from_description",
+        publicLabel = "Logging your session",
+        description = "Create a finished manual workout from a description.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "activity_type" to JsonObject(mapOf("type" to JsonPrimitive("string"), "enum" to JsonArray(listOf("walk", "run", "cycle", "gym", "squash", "sport", "yoga", "hike", "other").map { JsonPrimitive(it) }))),
+                "date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "start_time" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("string"), JsonPrimitive("null"))))),
+                "duration_min" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("number"), JsonPrimitive("null"))))),
+                "distance_km" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("number"), JsonPrimitive("null"))))),
+                "notes" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "confidence" to JsonObject(mapOf("type" to JsonPrimitive("string"), "enum" to JsonArray(listOf("low", "medium", "high").map { JsonPrimitive(it) }))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("activity_type"), JsonPrimitive("date"), JsonPrimitive("start_time"), JsonPrimitive("duration_min"), JsonPrimitive("distance_km"), JsonPrimitive("notes"), JsonPrimitive("confidence"))),
+            "additionalProperties" to JsonPrimitive(false),
+        )),
+    ) { args, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, JsonElement>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val activityType = params["activity_type"]?.jsonPrimitive?.content ?: "other"
+        val durMin = params["duration_min"]?.jsonPrimitive?.doubleOrNull
+        if (durMin == null) {
+            return@CoachToolDef ToolResult("""{"ok":false,"needs_follow_up":true,"reason":"duration_missing","suggested_question":"Roughly how long was the $activityType session?"}""")
+        }
+        val date = params["date"]?.jsonPrimitive?.content ?: ""
+        val distKm = params["distance_km"]?.jsonPrimitive?.doubleOrNull
+        val notes = params["notes"]?.jsonPrimitive?.content ?: ""
+        val startTime = params["start_time"]?.jsonPrimitive?.contentOrNull
+
+        val startTs = startTime?.let { CoachDataAccess.parseLocalDate(it) }
+            ?: CoachDataAccess.parseLocalDate(date)?.plus(12 * 3600_000L)
+            ?: System.currentTimeMillis()
+        val endTs = startTs + (durMin * 60_000).toLong()
+
+        val session = com.pulseloop.data.entity.ActivitySessionEntity(
+            type = activityType,
+            statusRaw = "finished",
+            startedAt = startTs,
+            endedAt = endTs,
+            distanceMeters = distKm?.times(1000),
+            notes = notes.ifEmpty { null },
+            useGps = false,
+        )
+        kotlinx.coroutines.runBlocking {
+            db.activitySessionDao().upsert(session)
+        }
+        ToolResult("""{"ok":true,"created":true,"activity_id":"${session.id}","type":"$activityType","duration_min":$durMin}""")
+    }
+
+    // ── update_activity_session ─────────────────────────────────────────
+
+    private val updateActivitySession = CoachToolDef(
+        name = "update_activity_session",
+        publicLabel = "Updating that workout",
+        description = "Edit a saved workout. For older sessions returns needs_confirmation.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "activity_id" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "type" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("string"), JsonPrimitive("null"))), "enum" to JsonArray(listOf("walk", "run", "cycle", "gym", "squash", "sport", "yoga", "hike", "other").map { JsonPrimitive(it) }))),
+                "notes" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("string"), JsonPrimitive("null"))))),
+                "distance_km" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("number"), JsonPrimitive("null"))))),
+                "duration_min" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("number"), JsonPrimitive("null"))))),
+                "perceived_effort" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("string"), JsonPrimitive("null"))), "enum" to JsonArray(listOf("easy", "moderate", "hard", "very_hard").map { JsonPrimitive(it) }))),
+                "start_time" to JsonObject(mapOf("type" to JsonArray(listOf(JsonPrimitive("string"), JsonPrimitive("null"))))),
+                "reason" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("activity_id"), JsonPrimitive("type"), JsonPrimitive("notes"), JsonPrimitive("distance_km"), JsonPrimitive("duration_min"), JsonPrimitive("perceived_effort"), JsonPrimitive("start_time"), JsonPrimitive("reason"))),
+            "additionalProperties" to JsonPrimitive(false),
+        )),
+    ) { args, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, JsonElement>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val activityId = params["activity_id"]?.jsonPrimitive?.content ?: return@CoachToolDef ToolResult("""{"error":"missing activity_id"}""", isError = true)
+
+        val sessions = kotlinx.coroutines.runBlocking { db.activitySessionDao().recent(200) }
+        val session = sessions.firstOrNull { it.id == activityId }
+            ?: return@CoachToolDef ToolResult("""{"error":"activity '$activityId' not found"}""", isError = true)
+
+        val updates = com.pulseloop.coach.orchestration.ActivityUpdates(
+            type = params["type"]?.jsonPrimitive?.contentOrNull,
+            notes = params["notes"]?.jsonPrimitive?.contentOrNull,
+            distanceKm = params["distance_km"]?.jsonPrimitive?.doubleOrNull,
+            durationMin = params["duration_min"]?.jsonPrimitive?.doubleOrNull,
+            perceivedEffort = params["perceived_effort"]?.jsonPrimitive?.contentOrNull,
+            startTime = params["start_time"]?.jsonPrimitive?.contentOrNull,
+        )
+
+        val todayStart = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val isToday = session.startedAt >= todayStart
+
+        if (isToday) {
+            val updated = com.pulseloop.coach.orchestration.PendingActionExecutor.applyUpdates(updates, session)
+            kotlinx.coroutines.runBlocking { db.activitySessionDao().upsert(updated) }
+            ToolResult("""{"ok":true,"updated":true,"activity_id":"$activityId"}""")
+        } else {
+            ctx.pendingActions.add(com.pulseloop.coach.orchestration.PendingAction(
+                kind = com.pulseloop.coach.orchestration.PendingActionKind.UPDATE_ACTIVITY_SESSION,
+                activityId = activityId,
+                summary = "Update your ${session.type} session from ${CoachDataAccess.localDateString(session.startedAt)}?",
+                confirmLabel = "Save changes",
+                updates = updates,
+            ))
+            ToolResult("""{"ok":true,"needs_confirmation":true,"summary":"Awaiting your confirmation to edit that workout."}""")
+        }
+    }
+
+    // ── delete_activity_session ─────────────────────────────────────────
+
+    private val deleteActivitySession = CoachToolDef(
+        name = "delete_activity_session",
+        publicLabel = "Removing that workout",
+        description = "Delete a workout. Always returns needs_confirmation.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "activity_id" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "reason" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("activity_id"), JsonPrimitive("reason"))),
+            "additionalProperties" to JsonPrimitive(false),
+        )),
+    ) { args, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, String>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val activityId = params["activity_id"] ?: return@CoachToolDef ToolResult("""{"error":"missing activity_id"}""", isError = true)
+
+        val sessions = kotlinx.coroutines.runBlocking { db.activitySessionDao().recent(200) }
+        val session = sessions.firstOrNull { it.id == activityId }
+            ?: return@CoachToolDef ToolResult("""{"error":"activity '$activityId' not found"}""", isError = true)
+
+        ctx.pendingActions.add(com.pulseloop.coach.orchestration.PendingAction(
+            kind = com.pulseloop.coach.orchestration.PendingActionKind.DELETE_ACTIVITY_SESSION,
+            activityId = activityId,
+            summary = "Delete your ${session.type} session from ${CoachDataAccess.localDateString(session.startedAt)}? This can't be undone.",
+            confirmLabel = "Delete",
+        ))
+        ToolResult("""{"ok":true,"needs_confirmation":true,"summary":"Awaiting your confirmation to delete that workout."}""")
     }
 }

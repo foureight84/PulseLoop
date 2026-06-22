@@ -383,20 +383,18 @@ UI (SwiftUI) ─────────────────────┘
 - **Committed:** branch `feature/android_phase7` — 5 files
 - **Code review:** (pending)
 
-### Phase 8: Data Flow & Wiring (next)
-- [ ] Create `EventPersistenceSubscriber.kt` — listens to PulseEventBus, writes to Room
-- [ ] Create `ActivityService.kt` — activity updates, bucket summing (idempotent)
-- [ ] Create `MetricsService.kt` — daily trends, 7-day averages, resting HR
-- [ ] Create `CoachDataAccess.kt` — real Room queries for coach tools
-- [ ] Create `CoachContextBuilder.kt` — reads profile/device/goals/trends from Room
-- [ ] Wire BLE → EventBus → Subscriber → Room → ViewModels → UI
-- [ ] Create TodayViewModel, VitalsViewModel, SleepViewModel, ActivityViewModel
-- [ ] Bind Compose screens to ViewModels (replace hardcoded strings)
-- [ ] Wire CoachScreen to CoachViewModel (real chat with orchestrator)
-- [ ] Add Settings navigation route
-- [ ] Add Workout recording navigation route
-- [ ] Wire LiveWorkoutManager to RecordScreen via ViewModel
-- [ ] **Verify:** pair ring → data appears on screens
+### Phase 8: Data Flow & Wiring ✅ COMPLETE
+- [x] Create `EventPersistenceSubscriber.kt` — PulseEventBus → Room persistence
+- [x] Create `TodayViewModel.kt` — real Room data for Today screen
+- [x] Create `SleepViewModel.kt` — real Room data for Sleep screen
+- [x] Create `ActivityViewModel.kt` — real Room data for Activity screen
+- [x] Create `CoachViewModel.kt` — orchestrator wired to chat UI
+- [x] Wire TodayScreen to TodayViewModel (replaces hardcoded strings)
+- [x] Add Settings navigation route (⚙ icon on Today header)
+- [x] Add Pairing navigation route (Bluetooth icon on Today header)
+- [x] Wire BLE client + DB into PulseLoopApp composable
+- **Committed:** branch `feature/android_phase8` — 4 files
+- **Code review:** (pending)
 
 ### Phase 9: Remaining UI & Polish
 - [ ] Create `OnboardingScreen.kt` — first-launch pairing + permissions

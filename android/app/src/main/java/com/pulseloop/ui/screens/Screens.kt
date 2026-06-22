@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.pulseloop.ui.components.MetricTile
+import com.pulseloop.ui.viewmodels.TodayViewModel
 
 /**
  * Today dashboard — ported from TodayView.swift.
@@ -19,7 +20,8 @@ import com.pulseloop.ui.components.MetricTile
  * heart rate, SpO2, plus a mini sparkline for each.
  */
 @Composable
-fun TodayScreen(navController: androidx.navigation.NavController? = null) {
+fun TodayScreen(navController: androidx.navigation.NavController? = null, viewModel: TodayViewModel? = null) {
+    val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(TodayViewModel.TodayState()) })
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -28,9 +30,14 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Today", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                if (navController != null) {
-                    IconButton(onClick = { navController.navigate("pairing") }) {
-                        Icon(Icons.Filled.Bluetooth, "Pair Ring", tint = MaterialTheme.colorScheme.primary)
+                Row {
+                    if (navController != null) {
+                        IconButton(onClick = { navController.navigate("settings") }) {
+                            Icon(Icons.Filled.Settings, "Settings")
+                        }
+                        IconButton(onClick = { navController.navigate("pairing") }) {
+                            Icon(Icons.Filled.Bluetooth, "Pair Ring", tint = if (state.isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
@@ -42,15 +49,34 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null) {
                 MetricTile(
                     modifier = Modifier.weight(1f),
                     label = "Steps",
-                    value = "8,432",
+                    value = formatNumber(state.steps),
                     unit = "steps",
-                    trend = "+12%",
+                    trend = null,
                 )
                 MetricTile(
                     modifier = Modifier.weight(1f),
                     label = "Calories",
-                    value = "342",
+                    value = state.calories?.let { formatNumber(it.toInt()) } ?: "--",
                     unit = "kcal",
+                    trend = null,
+                )
+            }
+        }
+
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricTile(
+                    modifier = Modifier.weight(1f),
+                    label = "Distance",
+                    value = state.distanceMeters?.let { "%.1f".format(it / 1000) } ?: "--",
+                    unit = "km",
+                    trend = null,
+                )
+                MetricTile(
+                    modifier = Modifier.weight(1f),
+                    label = "Active",
+                    value = state.activeMinutes?.toString() ?: "--",
+                    unit = "min",
                     trend = null,
                 )
             }
@@ -81,11 +107,12 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null) {
                     Text("Heart Rate", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "72 bpm",
+                        state.heartRate?.let { "$it bpm" } ?: "-- bpm",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    Text("Resting · 58 bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(state.restingHR?.let { "Resting · %.0f bpm".format(it) } ?: "No recent data",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -96,22 +123,32 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null) {
                     Text("SpO₂", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "98%",
+                        state.spo2?.let { "$it%" } ?: "--%",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    Text("Last reading · 2 min ago", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (state.spo2 != null) "Latest reading" else "No recent data",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
         item {
-            Text(
-                "Demo data — pair a ring to see your metrics",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricTile(Modifier.weight(1f), "Sleep", state.sleepMinutes?.let { "${it / 60}h ${it % 60}m" } ?: "--", "last night", null)
+                MetricTile(Modifier.weight(1f), "Battery", "${state.batteryPercent}%", if (state.isConnected) "connected" else "--", null)
+            }
+        }
+
+        item {
+            if (state.steps == null) {
+                Text(
+                    "No ring data yet — pair a ring to see your metrics",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }
@@ -348,4 +385,9 @@ fun CoachScreen() {
             }
         }
     }
+}
+
+private fun formatNumber(value: Int?): String {
+    if (value == null) return "--"
+    return "%,d".format(value)
 }

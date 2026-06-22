@@ -335,7 +335,17 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+                // Firmware version
+                device.value?.firmwareVersion?.let { fw ->
+                    Text("Firmware: $fw", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                }
                 if (device.value != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Forget removes the ring from the app and tells it to reset. Disconnect just drops the BLE link — the ring can reconnect.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(

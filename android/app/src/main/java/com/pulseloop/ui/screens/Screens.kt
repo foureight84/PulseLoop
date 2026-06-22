@@ -2,9 +2,6 @@ package com.pulseloop.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,7 +9,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -20,6 +21,7 @@ import com.pulseloop.service.HeartRateZones
 import com.pulseloop.ui.components.MetricTile
 import com.pulseloop.ui.components.SimpleLineChart
 import com.pulseloop.ui.viewmodels.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -27,6 +29,7 @@ import kotlinx.coroutines.launch
  * Shows daily summary: steps, calories, distance, active minutes,
  * heart rate, SpO2, plus a mini sparkline for each.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
     navController: androidx.navigation.NavController? = null,
@@ -35,6 +38,34 @@ fun TodayScreen(
 ) {
     val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(TodayViewModel.TodayState()) })
     val scope = rememberCoroutineScope()
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    // Manual pull-to-refresh via nestedScroll overscroll detection
+    val pullToRefresh = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (isRefreshing) return available
+                return Offset.Zero
+            }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 50f && !isRefreshing && source == NestedScrollSource.UserInput) {
+                    isRefreshing = true
+                    scope.launch {
+                        coordinator?.pullToRefresh()
+                        kotlinx.coroutines.delay(1500)
+                        isRefreshing = false
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().nestedScroll(pullToRefresh)) {
+        if (isRefreshing) {
+            LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
+        }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -174,6 +205,7 @@ fun TodayScreen(
                 )
             }
         }
+    }
     }
 }
 

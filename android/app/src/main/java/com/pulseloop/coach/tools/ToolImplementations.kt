@@ -8,7 +8,12 @@ import kotlinx.serialization.json.*
  * Read-only retrieval tools.
  */
 object RetrievalTools {
-    val all: List<CoachToolDef> get() = listOf(makeDailySummary(), makeMetricSeries(), makeSleepSummary(), makeProfile())
+    val all: List<CoachToolDef> get() = listOf(
+        makeProfile(), makeDailySummary(), makeRangeSummary(), makeMetricSeries(),
+        makeActivitySessions(), makeSummarizeSession(), makeSyncStatus(),
+        makeDataAvailability(), makeSleepSummary(), makeSleepTrends(),
+        makeGoalProgress(), makeRecentAnomalies(),
+    )
 
     private fun makeProfile() = CoachToolDef(
         name = "get_profile_context",
@@ -133,6 +138,190 @@ object RetrievalTools {
         }
         ToolResult(result)
     }
+
+    // ── get_range_summary ─────────────────────────────────────────────
+
+    private fun makeRangeSummary() = CoachToolDef(
+        name = "get_range_summary",
+        publicLabel = "Fetching your ring data for that range",
+        description = "Fetch summarized activity, HR, SpO2, and sleep over a date range.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "start_date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "end_date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "include" to JsonObject(mapOf(
+                    "type" to JsonPrimitive("array"),
+                    "items" to JsonObject(mapOf("type" to JsonPrimitive("string"),
+                        "enum" to JsonArray(listOf("activity","hr","spo2","sleep","goals").map { JsonPrimitive(it) }))),
+                )),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("start_date"), JsonPrimitive("end_date"), JsonPrimitive("include"))),
+        )),
+    ) { jsonParams, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val params = Json.parseToJsonElement(jsonParams).jsonObject
+        val start = params["start_date"]?.jsonPrimitive?.content ?: return@CoachToolDef ToolResult("""{"error":"missing start_date"}""", isError = true)
+        val end = params["end_date"]?.jsonPrimitive?.content ?: return@CoachToolDef ToolResult("""{"error":"missing end_date"}""", isError = true)
+        val include = params["include"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty().toSet()
+        val result = kotlinx.coroutines.runBlocking {
+            val sb = StringBuilder("{")
+            sb.append(""""start_date":"$start","end_date":"$end",""")
+            if ("activity" in include || "goals" in include) {
+                val rows = db.activityDailyDao().recent(365).filter {
+                    val d = java.time.Instant.ofEpochMilli(it.date).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
+                    d >= start && d <= end
+                }
+                val totalSteps = rows.sumOf { it.steps }
+                sb.append(""""activity":{"days_available":${rows.size},"totals":{"steps":$totalSteps,"calories":${rows.sumOf { it.calories }},"active_minutes":${rows.sumOf { it.activeMinutes }}}},""")
+            }
+            val hrData = db.measurementDao().range(MeasurementKind.HEART_RATE.name, 0, System.currentTimeMillis())
+            val spo2Data = db.measurementDao().range(MeasurementKind.SPO2.name, 0, System.currentTimeMillis())
+            sb.append(""""hr":{"count":${hrData.size}},"spo2":{"count":${spo2Data.size}}}""")
+            sb.append("}")
+            sb.toString()
+        }
+        ToolResult(result)
+    }
+
+    // ── get_activity_sessions ──────────────────────────────────────────
+
+    private fun makeActivitySessions() = CoachToolDef(
+        name = "get_activity_sessions",
+        publicLabel = "Looking up your workouts",
+        description = "Fetch saved activity sessions over a date range.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "start_date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "end_date" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("start_date"), JsonPrimitive("end_date"))),
+        )),
+    ) { _, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        kotlinx.coroutines.runBlocking {
+            val sessions = db.activitySessionDao().recent(50)
+        val sb = StringBuilder("{\"count\":${sessions.size},\"sessions\":[")
+        sessions.forEachIndexed { i, s ->
+            if (i > 0) sb.append(",")
+            val dur = s.endedAt?.let { ((it - s.startedAt) / 60000.0).let { "%.1f".format(it) } } ?: "0"
+            sb.append("""{"id":"${s.id}","type":"${s.type}","duration_min":$dur,"distance_km":${s.distanceMeters?.div(1000)?.let { "%.2f".format(it) } ?: "null"},"avg_hr":${s.avgHeartRate ?: "null"},"notes":${s.notes?.let { "\"$it\"" } ?: "null"}}""")
+        }
+        sb.append("]}")
+        ToolResult(sb.toString())
+        }
+    }
+
+    // ── summarize_activity_session ─────────────────────────────────────
+
+    private fun makeSummarizeSession() = CoachToolDef(
+        name = "summarize_activity_session",
+        publicLabel = "Summarizing that workout",
+        description = "Compute summary statistics for one activity session.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf("activity_id" to JsonObject(mapOf("type" to JsonPrimitive("string"))))),
+            "required" to JsonArray(listOf(JsonPrimitive("activity_id"))),
+        )),
+    ) { jsonParams, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val params = Json.parseToJsonElement(jsonParams).jsonObject
+        val id = params["activity_id"]?.jsonPrimitive?.content ?: return@CoachToolDef ToolResult("""{"error":"missing activity_id"}""", isError = true)
+        val sessions = kotlinx.coroutines.runBlocking { db.activitySessionDao().recent(200) }
+        val s = sessions.firstOrNull { it.id == id } ?: return@CoachToolDef ToolResult("""{"error":"session not found"}""", isError = true)
+        val dur = s.endedAt?.let { ((it - s.startedAt) / 60000.0).let { "%.1f".format(it) } } ?: "0"
+        ToolResult("""{"id":"${s.id}","type":"${s.type}","duration_min":$dur,"distance_km":${s.distanceMeters?.div(1000)?.let { "%.2f".format(it) } ?: "null"},"avg_hr":${s.avgHeartRate ?: "null"},"max_hr":${s.maxHeartRate ?: "null"},"notes":${s.notes?.let { "\"$it\"" } ?: "null"}}""")
+    }
+
+    // ── get_sync_status ────────────────────────────────────────────────
+
+    private fun makeSyncStatus() = CoachToolDef(
+        name = "get_sync_status",
+        publicLabel = "Checking ring connection",
+        description = "Get the ring's current connection state, battery, last sync time.",
+        parameters = JsonObject(mapOf("type" to JsonPrimitive("object"), "properties" to JsonObject(emptyMap()))),
+    ) { _, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val device = kotlinx.coroutines.runBlocking { db.deviceDao().current() }
+        ToolResult("""{"device_name":"${device?.name ?: ""}","state":"${device?.stateRaw ?: "idle"}","battery_percent":${device?.batteryPercent ?: 0},"last_sync_at":${device?.lastSyncAt?.let { "\"${java.time.Instant.ofEpochMilli(it)}\"" } ?: "null"}}""")
+    }
+
+    // ── get_data_availability ──────────────────────────────────────────
+
+    private fun makeDataAvailability() = CoachToolDef(
+        name = "get_data_availability",
+        publicLabel = "Checking what data exists",
+        description = "Report how many readings exist per metric in a date range.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "start" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "end" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("start"), JsonPrimitive("end"))),
+        )),
+    ) { _, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val act = kotlinx.coroutines.runBlocking { db.activityDailyDao().recent(365) }
+        val hrCount = kotlinx.coroutines.runBlocking { db.measurementDao().range(MeasurementKind.HEART_RATE.name, 0, System.currentTimeMillis()) }.size
+        val spo2Count = kotlinx.coroutines.runBlocking { db.measurementDao().range(MeasurementKind.SPO2.name, 0, System.currentTimeMillis()) }.size
+        val sleepCount = kotlinx.coroutines.runBlocking { db.sleepSessionDao().recent(365) }.size
+        ToolResult("""{"available_metrics":{"activity_days":${act.size},"heart_rate":$hrCount,"spo2":$spo2Count,"sleep_nights":$sleepCount}}""")
+    }
+
+    // ── get_sleep_trends ───────────────────────────────────────────────
+
+    private fun makeSleepTrends() = CoachToolDef(
+        name = "get_sleep_trends",
+        publicLabel = "Reviewing your sleep",
+        description = "Summarize sleep over a range: average duration, nights tracked.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf("range" to JsonObject(mapOf(
+                "type" to JsonPrimitive("string"),
+                "enum" to JsonArray(listOf("week","month","year").map { JsonPrimitive(it) }),
+            )))),
+            "required" to JsonArray(listOf(JsonPrimitive("range"))),
+        )),
+    ) { jsonParams, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val params = Json.parseToJsonElement(jsonParams).jsonObject
+        val range = params["range"]?.jsonPrimitive?.content ?: "week"
+        val limit = when (range) { "week" -> 7; "month" -> 30; else -> 365 }
+        val sessions = kotlinx.coroutines.runBlocking { db.sleepSessionDao().recent(limit) }
+        val avgMin = if (sessions.isNotEmpty()) sessions.map { it.totalMinutes }.average().toInt() else 0
+        ToolResult("""{"range":"$range","nights_tracked":${sessions.size},"expected_nights":$limit,"avg_total_min":$avgMin,"note":"experimental decoder (light/deep/awake only)"}""")
+    }
+
+    // ── get_goal_progress ──────────────────────────────────────────────
+
+    private fun makeGoalProgress() = CoachToolDef(
+        name = "get_goal_progress",
+        publicLabel = "Checking your goals",
+        description = "Compare today's metrics against the user's goals.",
+        parameters = JsonObject(mapOf("type" to JsonPrimitive("object"), "properties" to JsonObject(emptyMap()))),
+    ) { _, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val goal = kotlinx.coroutines.runBlocking { db.userGoalDao().get() }
+        val todayStart = java.time.Instant.now().atZone(java.time.ZoneId.systemDefault()).truncatedTo(java.time.temporal.ChronoUnit.DAYS).toInstant().toEpochMilli()
+        val today = kotlinx.coroutines.runBlocking { db.activityDailyDao().byDay(todayStart) }
+        ToolResult("""{"today":{"steps":${today?.steps ?: 0},"steps_goal":${goal?.steps ?: 10000},"active_minutes":${today?.activeMinutes ?: 0},"active_minutes_goal":${goal?.activeMinutes ?: 45}},"sleep_hours_goal":${(goal?.sleepMinutes ?: 480) / 60}}""")
+    }
+
+    // ── get_recent_anomalies ───────────────────────────────────────────
+
+    private fun makeRecentAnomalies() = CoachToolDef(
+        name = "get_recent_anomalies",
+        publicLabel = "Scanning for anything unusual",
+        description = "Detect statistical outliers in steps and resting HR over last ~14 days.",
+        parameters = JsonObject(mapOf("type" to JsonPrimitive("object"), "properties" to JsonObject(emptyMap()))),
+    ) { _, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val recentSteps = kotlinx.coroutines.runBlocking { db.activityDailyDao().recent(14) }.map { it.steps.toDouble() }
+        val stepOutliers = AnalysisEngine.outliers(recentSteps)
+        ToolResult("""{"steps_outliers":${stepOutliers.size},"steps_analyzed":${recentSteps.size}}""")
+    }
 }
 
 /**
@@ -140,7 +329,7 @@ object RetrievalTools {
  * Deterministic analysis tools (trend, correlation, outliers).
  */
 object AnalysisTools {
-    val all: List<CoachToolDef> by lazy { listOf(analyzeTrend) }
+    val all: List<CoachToolDef> by lazy { listOf(analyzeTrend, comparePeriods, computeCorrelation, detectOutliers, summarizeDistribution) }
 
     private val analyzeTrend = CoachToolDef(
         name = "analyze_trend",
@@ -168,6 +357,121 @@ object AnalysisTools {
         val result = AnalysisEngine.trend(vals)
         val metric = try { json.decodeFromString<Map<String, String>>(args)["metric"] ?: "values" } catch (_: Exception) { "values" }
         ToolResult("""{"metric":"$metric","slope":${result.slopePerDay},"direction":"${result.direction}","mean":${result.average ?: 0.0},"n":${result.count},"confidence":"medium"}""")
+    }
+
+    // ── compare_periods ────────────────────────────────────────────────
+
+    private val comparePeriods = CoachToolDef(
+        name = "compare_periods",
+        publicLabel = "Comparing two time periods",
+        description = "Compare a metric between two time periods (e.g., this week vs last week).",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "period_a" to JsonObject(mapOf("type" to JsonPrimitive("array"),
+                    "items" to JsonObject(mapOf("type" to JsonPrimitive("number"))))),
+                "period_b" to JsonObject(mapOf("type" to JsonPrimitive("array"),
+                    "items" to JsonObject(mapOf("type" to JsonPrimitive("number"))))),
+                "label_a" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+                "label_b" to JsonObject(mapOf("type" to JsonPrimitive("string"))),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("period_a"), JsonPrimitive("period_b"))),
+        )),
+    ) { args, _ ->
+        val json = Json { ignoreUnknownKeys = true }
+        val obj = json.decodeFromString<JsonObject>(args)
+        val a = obj["period_a"]?.jsonArray?.map { it.jsonPrimitive.double }.orEmpty()
+        val b = obj["period_b"]?.jsonArray?.map { it.jsonPrimitive.double }.orEmpty()
+        val result = AnalysisEngine.comparePeriods(a, b)
+        ToolResult("""{"a_avg":${result.aAverage ?: 0.0},"b_avg":${result.bAverage ?: 0.0},"direction":"${result.direction}","change_pct":${result.deltaPercent ?: 0.0}}""")
+    }
+
+    // ── compute_correlation ─────────────────────────────────────────────
+
+    private val computeCorrelation = CoachToolDef(
+        name = "compute_correlation",
+        publicLabel = "Computing correlation",
+        description = "Compute Pearson correlation between two sets of paired values.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "pairs" to JsonObject(mapOf(
+                    "type" to JsonPrimitive("array"),
+                    "items" to JsonObject(mapOf(
+                        "type" to JsonPrimitive("object"),
+                        "properties" to JsonObject(mapOf(
+                            "x" to JsonObject(mapOf("type" to JsonPrimitive("number"))),
+                            "y" to JsonObject(mapOf("type" to JsonPrimitive("number"))),
+                        )),
+                    )),
+                )),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("pairs"))),
+        )),
+    ) { args, _ ->
+        val json = Json { ignoreUnknownKeys = true }
+        val obj = json.decodeFromString<JsonObject>(args)
+        val pairs = obj["pairs"]?.jsonArray?.map { el ->
+            val p = el.jsonObject
+            (p["x"]?.jsonPrimitive?.double ?: 0.0) to (p["y"]?.jsonPrimitive?.double ?: 0.0)
+        }.orEmpty()
+        val result = AnalysisEngine.correlation(pairs)
+        ToolResult("""{"pearson":${result.pearson ?: "null"},"strength":"${result.strength}","n":${pairs.size}}""")
+    }
+
+    // ── detect_outliers ─────────────────────────────────────────────────
+
+    private val detectOutliers = CoachToolDef(
+        name = "detect_outliers",
+        publicLabel = "Detecting outliers",
+        description = "Detect statistical outliers (z-score > 2) in a series of values.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "values" to JsonObject(mapOf(
+                    "type" to JsonPrimitive("array"),
+                    "items" to JsonObject(mapOf("type" to JsonPrimitive("number"))),
+                )),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("values"))),
+        )),
+    ) { args, _ ->
+        val json = Json { ignoreUnknownKeys = true }
+        val obj = json.decodeFromString<JsonObject>(args)
+        val values = obj["values"]?.jsonArray?.map { it.jsonPrimitive.double }.orEmpty()
+        val outliers = AnalysisEngine.outliers(values)
+        val sb = StringBuilder("{\"outliers\":[")
+        outliers.forEachIndexed { i, o ->
+            if (i > 0) sb.append(",")
+            val zs = "%.2f".format(o.zScore)
+            sb.append("""{"index":$i,"value":${o.value},"z_score":$zs}""")
+        }
+        sb.append("""],"n":${values.size}}""")
+        ToolResult(sb.toString())
+    }
+
+    // ── summarize_distribution ──────────────────────────────────────────
+
+    private val summarizeDistribution = CoachToolDef(
+        name = "summarize_distribution",
+        publicLabel = "Summarizing distribution",
+        description = "Compute statistical summary: mean, median, min, max, std dev.",
+        parameters = JsonObject(mapOf(
+            "type" to JsonPrimitive("object"),
+            "properties" to JsonObject(mapOf(
+                "values" to JsonObject(mapOf(
+                    "type" to JsonPrimitive("array"),
+                    "items" to JsonObject(mapOf("type" to JsonPrimitive("number"))),
+                )),
+            )),
+            "required" to JsonArray(listOf(JsonPrimitive("values"))),
+        )),
+    ) { args, _ ->
+        val json = Json { ignoreUnknownKeys = true }
+        val obj = json.decodeFromString<JsonObject>(args)
+        val values = obj["values"]?.jsonArray?.map { it.jsonPrimitive.double }.orEmpty()
+        val result = AnalysisEngine.distribution(values)
+        ToolResult("""{"mean":${result.mean ?: "null"},"median":${result.median ?: "null"},"min":${result.min ?: "null"},"max":${result.max ?: "null"},"std":${result.stddev ?: "null"},"n":${result.count}}""")
     }
 }
 

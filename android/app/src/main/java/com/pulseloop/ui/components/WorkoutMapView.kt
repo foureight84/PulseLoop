@@ -65,9 +65,9 @@ fun WorkoutMapView(
                 val lonR = if (maxLon == minLon) 0.001 else maxLon - minLon
 
                 fun toScreen(lat: Double, lon: Double): Offset {
-                    val x = ((lon - minLon) / lonR * (w - 32f) + 16f).toFloat()
-                    val y = (h - ((lat - minLat) / latR * (h - 32f) + 16f)).toFloat()
-                    return Offset(if (x < 0f) 0f else x, if (y < 0f) 0f else y)
+                    val x = kotlin.math.max(0f, ((lon - minLon) / lonR * (w - 32f) + 16f).toFloat())
+                    val y = kotlin.math.max(0f, (h - ((lat - minLat) / latR * (h - 32f) + 16f)).toFloat())
+                    return androidx.compose.ui.geometry.Offset(x, y)
                 }
 
                 // Draw polyline

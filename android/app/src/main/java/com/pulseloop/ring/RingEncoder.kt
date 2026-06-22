@@ -48,11 +48,6 @@ object RingEncoder {
     fun makeSpO2StartCommand(): ByteArray = hexToBytes("3e01000000000000000000000000000000000000")
     fun makeSpO2StopCommand(): ByteArray = hexToBytes("3e00000000000000000000000000000000000000")
 
-    /**
-     * Set temperature mode (0x52). The exact payload is uncertain — this sends the
-     * same format the official app uses for setTemperatureMode.
-     */
-    fun makeTemperatureModeCommand(): ByteArray = hexToBytes("5201000000000000000000000000000000000000")
     fun makeFindRingCommand(): ByteArray = hexToBytes("040a000000000000000000000000000000000000")
 
     /**

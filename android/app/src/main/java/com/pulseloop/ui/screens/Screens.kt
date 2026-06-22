@@ -201,37 +201,40 @@ fun TodayScreen(
             }
         }
 
-        // Blood pressure (if available)
-        if (state.bloodPressureSystolic != null || state.bloodPressureDiastolic != null) {
+        // Blood pressure (shown whenever the ring supports it)
+        if (state.supportsBP) {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Blood Pressure", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
+                        val hasBp = state.bloodPressureSystolic != null || state.bloodPressureDiastolic != null
                         Text(
                             "${state.bloodPressureSystolic ?: "--"} / ${state.bloodPressureDiastolic ?: "--"}",
                             style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (hasBp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text("mmHg", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (hasBp) "mmHg" else "No recent data — take a measurement",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
 
-        // Blood sugar (if available)
-        if (state.bloodSugar != null) {
+        // Blood sugar (shown whenever the ring supports it)
+        if (state.supportsGlucose) {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Blood Sugar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            String.format("%.1f", state.bloodSugar),
+                            state.bloodSugar?.let { String.format("%.1f", it) } ?: "--",
                             style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (state.bloodSugar != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text("mg/dL", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (state.bloodSugar != null) "mg/dL" else "No recent data",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

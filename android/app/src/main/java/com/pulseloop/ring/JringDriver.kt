@@ -26,14 +26,16 @@ object JringCoordinator : WearableCoordinator {
         WearableCapability.STEPS,
         WearableCapability.SLEEP,
         WearableCapability.BATTERY,
-        WearableCapability.BLOOD_PRESSURE,
+        WearableCapability.BLOOD_PRESSURE,   // 0x23/0x24 combined measurement
+        WearableCapability.BLOOD_SUGAR,      // FUNCTION_HAS_BLOODSUGAR + standard Glucose service
         WearableCapability.MANUAL_HEART_RATE,
         WearableCapability.MANUAL_SPO2,
         WearableCapability.REALTIME_HEART_RATE,
         WearableCapability.FIND_DEVICE,
-        // Temperature: present in official APK (setTemperatureMode, ACTION_NOTIFY_TEMPERATURE_DATA)
-        // but may be for smartwatch variants sharing the same app. Included experimentally.
-        WearableCapability.TEMPERATURE,
+        // NOTE: No TEMPERATURE — the Jring (SR08-class PPG ring) has no skin-temperature
+        // sensor. In the official app temperature is gated by the 0x20 capability bit
+        // FUNCTION_TEMPERATURE (zArr[10]), which these rings do not set; it exists in the
+        // shared SDK only for smartwatch variants.
     )
 
     override val iconSystemName = "circle.hexagongrid.circle.fill"
@@ -110,11 +112,6 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
 
     fun stopCombinedMeasurement() {
         writer?.enqueue(encoder.makeCombinedMeasurementStop())
-    }
-
-    /** Temperature mode (0x52). Experimental — may only work on smartwatch variants. */
-    fun startTemperatureMode() {
-        writer?.enqueue(encoder.makeTemperatureModeCommand())
     }
 
     override fun findDevice() {

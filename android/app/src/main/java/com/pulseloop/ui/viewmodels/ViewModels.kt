@@ -33,6 +33,8 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
         val bloodPressureSystolic: Int? = null,
         val bloodPressureDiastolic: Int? = null,
         val bloodSugar: Double? = null,
+        val supportsBP: Boolean = false,
+        val supportsGlucose: Boolean = false,
         val batteryPercent: Int = 0,
         val deviceState: String = "idle",
         val isConnected: Boolean = false,
@@ -61,6 +63,8 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
                     batteryPercent = device?.batteryPercent ?: 0,
                     deviceState = device?.stateRaw ?: "idle",
                     isConnected = device?.stateRaw == "CONNECTED",
+                    supportsBP = device?.capabilities?.contains(WearableCapability.BLOOD_PRESSURE) ?: false,
+                    supportsGlucose = device?.capabilities?.contains(WearableCapability.BLOOD_SUGAR) ?: false,
                 ) }
             }
         }

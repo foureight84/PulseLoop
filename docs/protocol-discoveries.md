@@ -13,7 +13,10 @@ open-source Gadgetbridge KeepFit implementation (PR #5326). Key findings:
 - **Manufacturer**: keeprapid.com (Chinese OEM, white-labels across many brands)
 - **SDK**: SXR KeepFit SDK (`com.sxr.sdk.ble.keepfit`) — SXR = ShenXinRui (深新锐)
 - **SoC**: Renesas DA14531 (Dialog DA145XX)
-- **Official protocol doc**: `深新锐蓝牙协议v3.0.docx` on keeprapid's GitHub
+- **Manufacturer's GitHub**: [keeprapid/krwatch](https://github.com/keeprapid/krwatch) — official SDK, server,
+  and the protocol doc `深新锐蓝牙协议v3.0.docx` (under `doc 2/` and `doc.zip`)
+- **Open-source ring hardware/firmware**: [atc1441/ATC_SR08_Ring](https://github.com/atc1441/ATC_SR08_Ring)
+  (the SR08 ring is a PPG HR/SpO₂ + accelerometer device — **no skin-temperature sensor**)
 
 ## Major Corrections
 

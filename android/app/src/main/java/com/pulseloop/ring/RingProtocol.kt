@@ -53,8 +53,9 @@ enum class RingCommandID(val code: UByte) {
     SPO2_TOGGLE(0x3Eu),
     SPO2_RESULT(0x3Fu),
     MENSTRUAL_CYCLE(0x44u),
-    APP_IDENTIFIER(0x48u),
-    TEMPERATURE_MODE(0x52u);
+    APP_IDENTIFIER(0x48u);
+    // NOTE: 0x52 is CMD_SET_APP_STATE in the SXR SDK (setAppState0), NOT temperature.
+    // The Jring ring has no temperature sensor, so no temperature opcode is defined here.
 
     companion object {
         fun fromCode(code: UByte): RingCommandID? = entries.find { it.code == code }

@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit
 /**
  * TodayViewModel — reads Room data for the Today dashboard.
  * Ported from MetricsService.buildTodaySummary in PulseServices.swift.
+ * Uses reactive Flow queries so live ring data appears immediately.
  */
 class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
     private val todayStart = Instant.now().truncatedTo(ChronoUnit.DAYS).toEpochMilli()
@@ -37,7 +38,6 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
 
     init {
         viewModelScope.launch {
-            // Observe activity for today
             db.activityDailyDao().byDayFlow(todayStart).collect { activity ->
                 _state.update { it.copy(
                     steps = activity?.steps,
@@ -56,16 +56,21 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
                 ) }
             }
         }
+        // Reactive HR — poll latest every 2 seconds so live ring readings appear
         viewModelScope.launch {
-            // Latest HR
-            kotlinx.coroutines.delay(500)
-            val hr = db.measurementDao().latest(MeasurementKind.HEART_RATE.name)
-            _state.update { it.copy(heartRate = hr?.toInt()) }
+            while (true) {
+                val hr = db.measurementDao().latest(MeasurementKind.HEART_RATE.name)
+                _state.update { it.copy(heartRate = hr?.toInt()) }
+                kotlinx.coroutines.delay(2000)
+            }
         }
+        // Reactive SpO2 — poll latest every 3 seconds
         viewModelScope.launch {
-            kotlinx.coroutines.delay(500)
-            val spo2 = db.measurementDao().latest(MeasurementKind.SPO2.name)
-            _state.update { it.copy(spo2 = spo2?.toInt()) }
+            while (true) {
+                val spo2 = db.measurementDao().latest(MeasurementKind.SPO2.name)
+                _state.update { it.copy(spo2 = spo2?.toInt()) }
+                kotlinx.coroutines.delay(3000)
+            }
         }
     }
 }

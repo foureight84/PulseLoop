@@ -87,10 +87,12 @@ fun PulseLoopApp() {
                 bleClient.connectLastKnown()
             }
 
-            // Seed demo data on first launch if no ring data
+            // Seed demo data ONLY on first launch with no ring data
             val device = db.deviceDao().current()
-            if (device == null) {
+            val hasAnyActivity = db.activityDailyDao().recent(1).isNotEmpty()
+            if (device == null && !hasAnyActivity && !apiKeyStore.demoDataSeeded) {
                 com.pulseloop.data.DemoDataSeeder.seed(db)
+                apiKeyStore.demoDataSeeded = true
             }
         }
 
@@ -137,7 +139,7 @@ fun PulseLoopApp() {
                 startDestination = "today",
                 modifier = Modifier.padding(padding),
             ) {
-                composable("today") { TodayScreen(navController, todayVM) }
+                composable("today") { TodayScreen(navController, todayVM, coordinator) }
                 composable("vitals") { VitalsScreen(viewModel = vitalsVM) }
                 composable("sleep") { SleepScreen(navController = navController, viewModel = sleepVM) }
                 composable("activity") { ActivityScreen(navController = navController, viewModel = activityVM) }

@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -19,6 +20,7 @@ import com.pulseloop.service.HeartRateZones
 import com.pulseloop.ui.components.MetricTile
 import com.pulseloop.ui.components.SimpleLineChart
 import com.pulseloop.ui.viewmodels.*
+import kotlinx.coroutines.launch
 
 /**
  * Today dashboard — ported from TodayView.swift.
@@ -26,8 +28,13 @@ import com.pulseloop.ui.viewmodels.*
  * heart rate, SpO2, plus a mini sparkline for each.
  */
 @Composable
-fun TodayScreen(navController: androidx.navigation.NavController? = null, viewModel: TodayViewModel? = null) {
+fun TodayScreen(
+    navController: androidx.navigation.NavController? = null,
+    viewModel: TodayViewModel? = null,
+    coordinator: com.pulseloop.service.RingSyncCoordinator? = null,
+) {
     val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(TodayViewModel.TodayState()) })
+    val scope = rememberCoroutineScope()
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -35,14 +42,43 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null, viewMo
     ) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Today", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Today", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    // Connection status
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        Icon(
+                            Icons.Filled.Bluetooth, null,
+                            modifier = Modifier.size(14.dp),
+                            tint = if (state.isConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (state.isConnected) "Connected · ${state.batteryPercent}%"
+                            else if (state.deviceState == "CONNECTING") "Connecting…"
+                            else "Disconnected",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (state.isConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 Row {
                     if (navController != null) {
                         IconButton(onClick = { navController.navigate("settings") }) {
                             Icon(Icons.Filled.Settings, "Settings")
                         }
-                        IconButton(onClick = { navController.navigate("pairing") }) {
-                            Icon(Icons.Filled.Bluetooth, "Pair Ring", tint = if (state.isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                        IconButton(onClick = {
+                            if (state.isConnected) {
+                                // Already connected — sync now
+                                scope.launch { coordinator?.syncNow() }
+                            } else {
+                                navController.navigate("pairing")
+                            }
+                        }) {
+                            Icon(
+                                if (state.isConnected) Icons.Filled.Sync else Icons.Filled.BluetoothConnected,
+                                contentDescription = if (state.isConnected) "Sync" else "Pair Ring",
+                                tint = if (state.isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            )
                         }
                     }
                 }

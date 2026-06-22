@@ -93,7 +93,8 @@ fun PairingScreen(
             // Error
             state.lastError?.let { error ->
                 Card(
-                    Modifier.fillMaxWidth().padding(16.dp, 8.dp),
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 ) {
                     Text(error, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onErrorContainer)
@@ -138,7 +139,7 @@ fun PairingScreen(
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(state.discovered) { ring ->
                         Card(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                             onClick = { bleClient.connectTo(ring.id) },
                         ) {
                             Row(

@@ -117,7 +117,7 @@ object MetricsService {
             MeasurementKind.SPO2 -> (96..99).random().toDouble()
             MeasurementKind.STRESS -> (20..70).random().toDouble()
             MeasurementKind.HRV -> (30..90).random().toDouble()
-            MeasurementKind.TEMPERATURE -> (33.0..36.0).random()
+            MeasurementKind.TEMPERATURE -> (330..360).random() / 10.0
         }
         val unit = when (kind) {
             MeasurementKind.HEART_RATE -> "bpm"

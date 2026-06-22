@@ -22,7 +22,7 @@ data class PendingAction(
     companion object {
         fun fromJson(jsonStr: String?): PendingAction? {
             if (jsonStr.isNullOrBlank()) return null
-            return try { Json.decodeFromString<serializer(), PendingAction>(jsonStr) }
+            return try { Json.decodeFromString<PendingAction>(jsonStr) }
             catch (_: Exception) { null }
         }
     }

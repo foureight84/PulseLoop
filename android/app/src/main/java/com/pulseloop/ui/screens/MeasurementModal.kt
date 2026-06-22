@@ -10,17 +10,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.entity.MeasurementEntity
 import com.pulseloop.ring.MeasurementKind
 import com.pulseloop.service.RingSyncCoordinator
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+
+private enum class MeasurePhase { PREPARING, MEASURING, RESULT, ERROR }
 
 /**
  * Ported from MeasurementSheet / MeasurementModal.swift.
@@ -33,7 +34,6 @@ fun MeasurementModal(
     coordinator: RingSyncCoordinator?,
     onDismiss: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val color = when (kind) {
         MeasurementKind.HEART_RATE -> Color(0xFFE53935)
         MeasurementKind.SPO2 -> Color(0xFF1E88E5)
@@ -55,22 +55,14 @@ fun MeasurementModal(
         else -> "Stay still during the measurement."
     }
 
-    var phase by remember { mutableStateOf(Phase.PREPARING) }
+    var phase by remember { mutableStateOf(MeasurePhase.PREPARING) }
     var value by remember { mutableStateOf<Int?>(null) }
 
-    // Animated ring pulse
     val infiniteTransition = rememberInfiniteTransition()
     val scale by infiniteTransition.animateFloat(
         initialValue = 0.85f, targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-    )
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = FastOutSlowInEasing),
+            animation = tween(1600, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
     )
@@ -78,7 +70,7 @@ fun MeasurementModal(
     // Run measurement
     LaunchedEffect(Unit) {
         delay(1200)
-        phase = Phase.MEASURING
+        phase = MeasurePhase.MEASURING
 
         val result: Int? = if (coordinator != null) {
             try {
@@ -89,14 +81,12 @@ fun MeasurementModal(
                 }
             } catch (_: Exception) { null }
         } else {
-            // Demo: simulate reading and save mock
             delay(if (kind == MeasurementKind.HEART_RATE) 2200 else 3000)
             val mockValue = when (kind) {
                 MeasurementKind.HEART_RATE -> (62..86).random()
                 MeasurementKind.SPO2 -> (96..99).random()
                 else -> 0
             }
-            // Insert mock measurement via DAO
             db.measurementDao().insert(MeasurementEntity(
                 kindRaw = kind.name,
                 value = mockValue.toDouble(),
@@ -110,11 +100,11 @@ fun MeasurementModal(
 
         if (result != null && result > 0) {
             value = result
-            phase = Phase.RESULT
+            phase = MeasurePhase.RESULT
             delay(1300)
             onDismiss()
         } else {
-            phase = Phase.ERROR
+            phase = MeasurePhase.ERROR
         }
     }
 
@@ -122,29 +112,21 @@ fun MeasurementModal(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Header
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column {
                 Text("MEASURING", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
-            TextButton(onClick = {
-                if (phase == Phase.MEASURING) onDismiss()
-                else onDismiss()
-            }) {
-                Text(if (phase == Phase.MEASURING) "Finish" else "Cancel")
+            TextButton(onClick = onDismiss) {
+                Text(if (phase == MeasurePhase.MEASURING) "Finish" else "Cancel")
             }
         }
 
         Spacer(Modifier.weight(1f))
 
-        if (phase == Phase.ERROR) {
-            // Error state
+        if (phase == MeasurePhase.ERROR) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Surface(
-                    Modifier.size(80.dp), shape = CircleShape,
-                    color = Color(0xFFE53935).copy(alpha = 0.1f),
-                ) {
+                Surface(Modifier.size(80.dp), shape = CircleShape, color = Color(0xFFE53935).copy(alpha = 0.1f)) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("!", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
                     }
@@ -154,35 +136,29 @@ fun MeasurementModal(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Button(onClick = { onDismiss() }) { Text("Close") }
+                Button(onClick = onDismiss) { Text("Close") }
             }
         } else {
-            // Measuring display
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(240.dp)) {
-                // Pulsing rings
                 repeat(3) { i ->
                     Canvas(Modifier.fillMaxSize()) {
                         val r = size.minDimension / 2 * 0.8f
                         drawCircle(
-                            color = color.copy(alpha = alpha * (1f - i * 0.25f)),
+                            color = color.copy(alpha = 0.3f * (1f - i * 0.25f)),
                             radius = r,
                             style = Stroke(width = 2f),
                         )
                     }
                 }
-                // Center circle with value
-                Surface(
-                    Modifier.size(220.dp), shape = CircleShape,
-                    color = color.copy(alpha = 0.12f),
-                ) {
+                Surface(Modifier.size(220.dp), shape = CircleShape, color = color.copy(alpha = 0.12f)) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            if (value != null && phase != Phase.PREPARING) {
+                            if (value != null && phase != MeasurePhase.PREPARING) {
                                 Text("$value", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
                                 Text(unit.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Text(
-                                    if (phase == Phase.PREPARING) "READY" else "MEASURING",
+                                    if (phase == MeasurePhase.PREPARING) "READY" else "MEASURING",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -196,10 +172,10 @@ fun MeasurementModal(
             Spacer(Modifier.height(24.dp))
             Text(
                 when (phase) {
-                    Phase.PREPARING -> instruction
-                    Phase.MEASURING -> if (kind == MeasurementKind.SPO2) "Measuring SpO₂… keep your hand still." else "Measuring… stay still."
-                    Phase.RESULT -> "Reading saved."
-                    Phase.ERROR -> ""
+                    MeasurePhase.PREPARING -> instruction
+                    MeasurePhase.MEASURING -> if (kind == MeasurementKind.SPO2) "Measuring SpO₂… keep your hand still." else "Measuring… stay still."
+                    MeasurePhase.RESULT -> "Reading saved."
+                    MeasurePhase.ERROR -> ""
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -208,17 +184,15 @@ fun MeasurementModal(
 
         Spacer(Modifier.weight(1f))
 
-        if (phase == Phase.RESULT) {
+        if (phase == MeasurePhase.RESULT) {
             Surface(
                 Modifier.fillMaxWidth().padding(bottom = 28.dp).clip(RoundedCornerShape(16.dp)),
                 color = Color(0xFF4CAF50).copy(alpha = 0.1f),
             ) {
                 Text("Saved", Modifier.fillMaxWidth().padding(vertical = 14.dp),
                     style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium,
-                    color = Color(0xFF4CAF50), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    color = Color(0xFF4CAF50), textAlign = TextAlign.Center)
             }
         }
     }
-
-    enum class Phase { PREPARING, MEASURING, RESULT, ERROR }
 }

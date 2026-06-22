@@ -4,6 +4,9 @@ import com.pulseloop.coach.tools.CoachFeatureFlags
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.entity.CoachSummaryEntity
 import com.pulseloop.settings.ApiKeyStore
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 
 /**
  * Ported from CoachSummaryService.swift.
@@ -71,8 +74,8 @@ class CoachSummaryService(
             db.coachSummaryDao().upsert(existing.copy(
                 title = content.title,
                 body = content.body,
-                chipsJSON = kotlinx.serialization.json.Json.encodeToString(
-                    kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>()),
+                chipsJSON = Json.encodeToString(
+                    ListSerializer(String.serializer()),
                     content.chips
                 ),
                 dataSignature = built.signature,
@@ -84,8 +87,8 @@ class CoachSummaryService(
                 scopeKey = built.scopeKey,
                 title = content.title,
                 body = content.body,
-                chipsJSON = kotlinx.serialization.json.Json.encodeToString(
-                    kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>()),
+                chipsJSON = Json.encodeToString(
+                    ListSerializer(String.serializer()),
                     content.chips
                 ),
                 dataSignature = built.signature,

@@ -6,7 +6,7 @@ import com.pulseloop.data.entity.WearableLogEntity
 import com.pulseloop.data.entity.WearableLogLevel
 import com.pulseloop.ring.*
 import kotlinx.coroutines.*
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.collect
 
 /**
  * Ported from DiagnosticsSubscriber.swift.
@@ -15,7 +15,6 @@ import kotlinx.serialization.json.Json
  */
 class DiagnosticsSubscriber(
     private val db: PulseLoopDatabase,
-    private val eventBus: PulseEventBus,
 ) {
     private var job: Job? = null
     private var activeDeviceType: RingDeviceType? = null
@@ -23,8 +22,7 @@ class DiagnosticsSubscriber(
     fun start(scope: CoroutineScope) {
         if (job != null) return
         job = scope.launch {
-            val stream = eventBus.events()
-            stream.collect { event ->
+            PulseEventBus.events.collect { event ->
                 record(event)
             }
         }
@@ -56,7 +54,6 @@ class DiagnosticsSubscriber(
             is PulseEvent.HeartRateComplete -> {
                 log(WearableLogCategory.SYNC, WearableLogLevel.INFO, "Heart-rate measurement complete")
             }
-            // Spo2Result indicates completion
             is PulseEvent.Spo2Result -> {
                 log(WearableLogCategory.SYNC, WearableLogLevel.INFO, "SpO₂ measurement complete")
             }
@@ -70,13 +67,13 @@ class DiagnosticsSubscriber(
         message: String,
         metadata: Map<String, String>? = null,
     ) {
-        val json = metadata?.let {
-            kotlinx.serialization.json.Json.encodeToString(
-                kotlinx.serialization.builtins.MapSerializer(
-                    kotlinx.serialization.builtins.serializer<String>(),
-                    kotlinx.serialization.builtins.serializer<String>(),
-                ), it
-            )
+        val json = metadata?.let { map ->
+            val sb = StringBuilder("{")
+            map.entries.forEachIndexed { i, (k, v) ->
+                if (i > 0) sb.append(",")
+                sb.append("\"${k.replace("\"", "\\\"")}\":\"${v.replace("\"", "\\\"")}\"")
+            }
+            sb.append("}").toString()
         }
         db.wearableLogDao().insert(WearableLogEntity(
             deviceTypeRaw = activeDeviceType?.name ?: "",

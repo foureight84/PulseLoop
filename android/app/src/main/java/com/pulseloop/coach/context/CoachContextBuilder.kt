@@ -86,12 +86,7 @@ object CoachContextBuilder {
             trends = CoachContextPacket.TrendsContext(
                 steps7d = stepsWeek,
                 hrResting = restingHr,
-                sleepAvgMin = if (activityWeek.isNotEmpty()) {
-                    activityWeek.map { it.date }.mapNotNull { d ->
-                        // Not fetching sleep per day in a quick context build; use recent
-                        null
-                    }.average().let { if (it.isNaN()) null else it }
-                } else null,
+                sleepAvgMin = null,  // Not fetching sleep per day in quick context build
             ),
             conversationSummary = conversationSummary,
             dataQualityWarnings = warnings,

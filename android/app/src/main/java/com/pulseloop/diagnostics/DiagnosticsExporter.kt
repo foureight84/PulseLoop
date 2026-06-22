@@ -20,22 +20,21 @@ object DiagnosticsExporter {
      * Serialize a diagnostics report to pretty-printed JSON.
      */
     suspend fun exportJSON(db: PulseLoopDatabase, maxLogs: Int = 500): String {
+        val device = db.deviceDao().current()
+        val logs = db.wearableLogDao().recent(maxLogs)
         val root = buildJsonObject {
             put("generatedAt", Instant.now().toString())
 
-            // App info
             putJsonObject("app") {
                 put("version", "1.0.0")
                 put("platform", "Android")
                 put("sdkVersion", Build.VERSION.SDK_INT)
             }
 
-            // Device info
             putJsonObject("device") {
                 put("model", Build.MODEL)
                 put("manufacturer", Build.MANUFACTURER)
                 put("osVersion", Build.VERSION.RELEASE)
-                val device = db.deviceDao().current()
                 if (device != null) {
                     put("wearableType", device.deviceTypeRaw)
                     put("wearableName", device.name)
@@ -45,33 +44,22 @@ object DiagnosticsExporter {
                 }
             }
 
-            // Logs
-            val logs = db.openHelper.readableDatabase.query(
-                "wearable_logs", null, null, null, null, null,
-                "timestamp DESC", maxLogs.toString()
-            )
             putJsonArray("logs") {
-                while (logs.moveToNext()) {
+                logs.forEach { log ->
                     addJsonObject {
-                        put("at", Instant.ofEpochMilli(logs.getLong(logs.getColumnIndexOrThrow("timestamp"))).toString())
-                        put("category", logs.getString(logs.getColumnIndexOrThrow("categoryRaw")))
-                        put("level", logs.getString(logs.getColumnIndexOrThrow("levelRaw")))
-                        put("message", logs.getString(logs.getColumnIndexOrThrow("message")))
-                        val meta = logs.getString(logs.getColumnIndexOrThrow("metadataJSON"))
-                        if (meta != null && meta != "null") put("metadata", meta)
-                        val dt = logs.getString(logs.getColumnIndexOrThrow("deviceTypeRaw"))
-                        if (!dt.isNullOrEmpty()) put("deviceType", dt)
+                        put("at", Instant.ofEpochMilli(log.timestamp).toString())
+                        put("category", log.categoryRaw)
+                        put("level", log.levelRaw)
+                        put("message", log.message)
+                        log.metadataJSON?.let { if (it != "null") put("metadata", it) }
+                        if (log.deviceTypeRaw.isNotEmpty()) put("deviceType", log.deviceTypeRaw)
                     }
                 }
             }
-            logs.close()
         }
         return json.encodeToString(JsonObject.serializer(), root)
     }
 
-    /**
-     * Write the report to a temporary file and return its File.
-     */
     suspend fun exportFile(context: Context, db: PulseLoopDatabase): File {
         val report = exportJSON(db)
         val stamp = Instant.now().toString().replace(":", "-")
@@ -80,9 +68,6 @@ object DiagnosticsExporter {
         return file
     }
 
-    /**
-     * Create a share intent for the diagnostics file.
-     */
     suspend fun shareIntent(context: Context, db: PulseLoopDatabase): Intent {
         val file = exportFile(context, db)
         val uri = FileProvider.getUriForFile(

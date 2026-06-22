@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.pulseloop.service.HeartRateZones
 import com.pulseloop.ui.components.MetricTile
+import com.pulseloop.ui.components.SimpleLineChart
 import com.pulseloop.ui.viewmodels.*
 
 /**
@@ -85,6 +86,7 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null, viewMo
                     trend = null,
                 )
             }
+        }
         // Distance + Active come from VM data above (no duplicate)
 
         item {

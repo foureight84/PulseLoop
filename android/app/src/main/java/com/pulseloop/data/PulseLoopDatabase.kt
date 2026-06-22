@@ -31,8 +31,9 @@ import com.pulseloop.data.entity.*
         UserGoalEntity::class,
         RawPacketEntity::class,
         DerivedUpdateEntity::class,
+        CoachSummaryEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class PulseLoopDatabase : RoomDatabase() {
@@ -49,6 +50,7 @@ abstract class PulseLoopDatabase : RoomDatabase() {
     abstract fun coachToolCallDao(): CoachToolCallDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun userGoalDao(): UserGoalDao
+    abstract fun coachSummaryDao(): CoachSummaryDao
 
     companion object {
         @Volatile private var INSTANCE: PulseLoopDatabase? = null

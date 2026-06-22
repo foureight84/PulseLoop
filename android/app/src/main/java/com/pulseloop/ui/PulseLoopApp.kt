@@ -20,6 +20,7 @@ import com.pulseloop.coach.tools.*
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.ring.RingBLEClient
 import com.pulseloop.service.*
+import com.pulseloop.coach.summaries.CoachSummaryCoordinator
 import com.pulseloop.settings.ApiKeyStore
 import com.pulseloop.ui.screens.*
 import com.pulseloop.ui.theme.PulseLoopTheme
@@ -42,6 +43,7 @@ fun PulseLoopApp() {
         val liveWorkout = remember { LiveWorkoutManager(coordinator, db, gpsRecorder, context) }
         val persistence = remember { EventPersistenceSubscriber(db) }
         val apiKeyStore = remember { ApiKeyStore(context) }
+        val summaryCoordinator = remember { CoachSummaryCoordinator(db, apiKeyStore) }
 
         // ── Coach wiring ─────────────────────────────────────────────────
         val coachOrchestrator = remember {
@@ -74,9 +76,10 @@ fun PulseLoopApp() {
             // Wire onConnected → run startup sequence
             bleClient.onConnected = { coordinator.runStartupSequence() }
 
-            // Start draining event bus → DB
+            // Start services
             persistence.start()
             coordinator.start()
+            summaryCoordinator.start()
 
             // Auto-reconnect to last-known ring if any
             if (bleClient.hasPermissions()) {

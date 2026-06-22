@@ -78,6 +78,8 @@ fun PulseLoopApp() {
                 composable("activity") { ActivityScreen() }
                 composable("coach") { CoachScreen() }
                 composable("settings") { SettingsScreen() }
+                composable("debug") { DebugScreen(onBack = { navController.popBackStack() }) }
+                composable("onboarding") { OnboardingScreen(onComplete = { navController.navigate("pairing") }) }
                 composable("pairing") {
                     PairingScreen(
                         bleClient = bleClient,

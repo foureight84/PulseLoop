@@ -333,6 +333,34 @@ class RingBLEClient(private val context: Context) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
             val driver = activeDriver ?: return
 
+            // Standard BLE health services — blood pressure (0x1810) + glucose (0x1808)
+            val bpServiceUuid = java.util.UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
+            val bpMeasureUuid = java.util.UUID.fromString("00002a35-0000-1000-8000-00805f9b34fb")
+            val glucoseServiceUuid = java.util.UUID.fromString("00001808-0000-1000-8000-00805f9b34fb")
+            val glucoseMeasureUuid = java.util.UUID.fromString("00002a18-0000-1000-8000-00805f9b34fb")
+            for (service in gatt.services) {
+                when (service.uuid) {
+                    bpServiceUuid -> {
+                        service.getCharacteristic(bpMeasureUuid)?.let {
+                            gatt.setCharacteristicNotification(it, true)
+                            it.getDescriptor(CCCD_UUID)?.let { desc ->
+                                desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                                gatt.writeDescriptor(desc)
+                            }
+                        }
+                    }
+                    glucoseServiceUuid -> {
+                        service.getCharacteristic(glucoseMeasureUuid)?.let {
+                            gatt.setCharacteristicNotification(it, true)
+                            it.getDescriptor(CCCD_UUID)?.let { desc ->
+                                desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                                gatt.writeDescriptor(desc)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Read firmware: scan ALL services for 0x2A26/0x2A28.
             // The 56ff ring exposes these even without advertising 0x180A DIS.
             val fwUuid = java.util.UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
@@ -407,6 +435,28 @@ class RingBLEClient(private val context: Context) {
             gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic
         ) {
             val value = characteristic.value ?: return
+            val uuid = characteristic.uuid.toString()
+
+            // Standard BLE health services — read before the ring-service guard
+            if (uuid.startsWith("00002a35")) {
+                // Blood Pressure Measurement — IEEE 11073 SFLOAT
+                if (value.size >= 7) {
+                    val systolic = decodeSFLOAT(value[1], value[2])
+                    val diastolic = decodeSFLOAT(value[3], value[4])
+                    PulseEventBus.publishBlocking(PulseEvent.HistoryMeasurement(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC, systolic, java.time.Instant.now()))
+                    PulseEventBus.publishBlocking(PulseEvent.HistoryMeasurement(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC, diastolic, java.time.Instant.now()))
+                }
+                return
+            }
+            if (uuid.startsWith("00002a18")) {
+                // Glucose Measurement — IEEE 11073 SFLOAT in kg/L → mg/dL
+                if (value.size >= 12) {
+                    val glucoseKgL = decodeSFLOAT(value[10], value[11])
+                    PulseEventBus.publishBlocking(PulseEvent.HistoryMeasurement(MeasurementKind.BLOOD_SUGAR, glucoseKgL * 100000.0, java.time.Instant.now()))
+                }
+                return
+            }
+
             val driver = activeDriver ?: return
             if (!driver.notifyUUIDs.any { it == characteristic.uuid.toString() }) return
 
@@ -485,5 +535,13 @@ class RingBLEClient(private val context: Context) {
         private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private val DIS_SERVICE_UUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb")
         private val FW_REV_UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
+
+        /** Decode IEEE 11073 SFLOAT: exponent (4-bit signed) + mantissa (12-bit signed). */
+        fun decodeSFLOAT(b0: Byte, b1: Byte): Double {
+            val raw = ((b1.toInt() and 0xFF) shl 8) or (b0.toInt() and 0xFF)
+            val exponent = ((raw shr 12) and 0x0F).let { if (it >= 8) it - 16 else it }
+            val mantissa = (raw and 0x0FFF).let { if (it >= 0x0800) it - 0x1000 else it }
+            return mantissa * Math.pow(10.0, exponent.toDouble())
+        }
     }
 }

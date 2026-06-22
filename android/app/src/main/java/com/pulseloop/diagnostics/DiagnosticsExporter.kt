@@ -56,6 +56,23 @@ object DiagnosticsExporter {
                     }
                 }
             }
+
+            // Raw BLE packets for protocol debugging
+            val sqlQuery = androidx.sqlite.db.SimpleSQLiteQuery(
+                "SELECT * FROM raw_packets ORDER BY timestamp DESC LIMIT 200"
+            )
+            val cursor = db.openHelper.readableDatabase.query(sqlQuery)
+            putJsonArray("rawPackets") {
+                while (cursor.moveToNext()) {
+                    addJsonObject {
+                        put("at", Instant.ofEpochMilli(cursor.getLong(cursor.getColumnIndexOrThrow("timestamp"))).toString())
+                        put("direction", cursor.getString(cursor.getColumnIndexOrThrow("directionRaw")))
+                        put("hex", cursor.getString(cursor.getColumnIndexOrThrow("hexPayload")))
+                        put("decoded", cursor.getString(cursor.getColumnIndexOrThrow("decodedKind")) ?: "")
+                    }
+                }
+            }
+            cursor.close()
         }
         return json.encodeToString(JsonObject.serializer(), root)
     }

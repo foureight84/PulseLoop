@@ -166,8 +166,14 @@ class RingBLEClient(private val context: Context) {
     fun disconnect() {
         autoReconnect = false
         scanner?.stopScan(scanCallback)
-        bluetoothGatt?.disconnect()
-        bluetoothGatt?.close()
+        // Clear Android's GATT cache and remove OS-level bond so ring
+        // is immediately discoverable after disconnect (no reboot needed)
+        bluetoothGatt?.let { gatt ->
+            try { gatt::class.java.getMethod("refresh").invoke(gatt) } catch (_: Exception) {}
+            try { gatt.device::class.java.getMethod("removeBond").invoke(gatt.device) } catch (_: Exception) {}
+            gatt.disconnect()
+            gatt.close()
+        }
         bluetoothGatt = null
         updateState { copy(connectionState = RingConnectionState.IDLE) }
     }

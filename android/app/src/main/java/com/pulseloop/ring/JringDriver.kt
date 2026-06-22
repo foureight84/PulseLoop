@@ -26,6 +26,7 @@ object JringCoordinator : WearableCoordinator {
         WearableCapability.STEPS,
         WearableCapability.SLEEP,
         WearableCapability.BATTERY,
+        WearableCapability.TEMPERATURE,
         WearableCapability.MANUAL_HEART_RATE,
         WearableCapability.MANUAL_SPO2,
         WearableCapability.REALTIME_HEART_RATE,

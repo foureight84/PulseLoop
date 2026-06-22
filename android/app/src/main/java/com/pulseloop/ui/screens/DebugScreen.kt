@@ -264,8 +264,13 @@ private fun detailFor(event: PulseEvent): String = when (event) {
     is PulseEvent.DeviceStateChanged -> event.state.name
     is PulseEvent.DeviceIdentified -> event.deviceType.displayName
     is PulseEvent.SyncProgress -> event.stage
-    is PulseEvent.RawPacket -> "${event.data.size}B ${event.direction.name}"
+    is PulseEvent.RawPacket -> hexDump(event.data) + " ${event.direction.name}"
     else -> ""
+}
+
+private fun hexDump(data: ByteArray): String {
+    if (data.size <= 8) return data.joinToString(" ") { "%02x".format(it) }
+    return data.take(8).joinToString(" ") { "%02x".format(it) } + "…"
 }
 
 private fun colorFor(event: PulseEvent): Color = when (event) {

@@ -43,8 +43,13 @@ fun DebugScreen(
     // Subscribe to live events from the ring
     LaunchedEffect(Unit) {
         PulseEventBus.events.collect { event ->
+            val dir = when (event) {
+                is PulseEvent.RawPacket -> if (event.direction == com.pulseloop.ring.PacketDirection.INCOMING) "↓" else "↑"
+                else -> "↓"  // all decoded events come from the ring
+            }
             val entry = LiveEventEntry(
                 time = timeFmt.format(Date()),
+                direction = dir,
                 label = labelFor(event),
                 detail = detailFor(event),
                 color = colorFor(event),
@@ -67,24 +72,34 @@ fun DebugScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // ── Live Ring Data ──────────────────────────────────────────
+            // ── Ring Event Log (command-response, not streaming) ───────
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Live Ring Data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("${liveEvents.size} events", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Ring Events", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("${liveEvents.size} captured", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        Text(
+                            "↓ = ring → app (response)   ↑ = app → ring (command). Events only arrive when the app queries the ring.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
                         if (liveEvents.isEmpty()) {
-                            Text("Waiting for ring data…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                            Text("No events yet. Sync the ring or trigger a measurement to see data.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp))
                         } else {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(4.dp))
                             liveEvents.take(20).forEach { entry ->
                                 Row(
                                     Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(entry.time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(56.dp))
+                                    Text(entry.direction, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(16.dp))
                                     Icon(Icons.Filled.Circle, null, Modifier.size(8.dp), tint = entry.color)
                                     Spacer(Modifier.width(4.dp))
                                     Text(entry.label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, modifier = Modifier.width(80.dp))
@@ -172,6 +187,7 @@ fun DebugScreen(
 
 private data class LiveEventEntry(
     val time: String,
+    val direction: String,
     val label: String,
     val detail: String,
     val color: Color,

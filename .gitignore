@@ -42,4 +42,3 @@ fastlane/test_output
 *.log
 *~
 graphify-out/
-decompiled/

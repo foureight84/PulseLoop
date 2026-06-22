@@ -77,6 +77,16 @@ fun PulseLoopApp() {
             // Wire onConnected → run startup sequence
             bleClient.onConnected = { coordinator.runStartupSequence() }
 
+            // Wire firmware read → persist to DB
+            bleClient.onFirmwareRead = { fw ->
+                kotlinx.coroutines.runBlocking {
+                    val dev = db.deviceDao().current()
+                    if (dev != null) {
+                        db.deviceDao().upsert(dev.copy(firmwareVersion = fw, updatedAt = System.currentTimeMillis()))
+                    }
+                }
+            }
+
             // Start services
             persistence.start()
             coordinator.start()
@@ -123,8 +133,13 @@ fun PulseLoopApp() {
                             label = { Text(tab.label) },
                             selected = selected,
                             onClick = {
+                                if (selected) return@NavigationBarItem
+                                // Pop everything including the start destination, then navigate
+                                // to the tab. This ensures we always get the tab view regardless
+                                // of current screen (settings, pairing, record, etc.)
                                 navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        inclusive = true
                                         saveState = true
                                     }
                                     launchSingleTop = true

@@ -46,6 +46,7 @@ class RingBLEClient(private val context: Context) {
         val lastError: String? = null,
         val activeDeviceType: RingDeviceType? = null,
         val activeCapabilities: Set<WearableCapability> = emptySet(),
+        val firmwareVersion: String? = null,
     )
 
     data class DiscoveredRing(
@@ -60,6 +61,7 @@ class RingBLEClient(private val context: Context) {
     val state: StateFlow<BLEState> = _state.asStateFlow()
 
     var onConnected: (suspend () -> Unit)? = null
+    var onFirmwareRead: ((String) -> Unit)? = null
     val syncEngine: RingSyncEngine? get() = activeSyncEngine
 
     // MARK: Bluetooth infrastructure
@@ -324,6 +326,15 @@ class RingBLEClient(private val context: Context) {
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
             val driver = activeDriver ?: return
+
+            // Read firmware from Device Information Service
+            for (service in gatt.services) {
+                if (service.uuid == DIS_SERVICE_UUID) {
+                    val fwChar = service.getCharacteristic(FW_REV_UUID)
+                    if (fwChar != null) gatt.readCharacteristic(fwChar)
+                }
+            }
+
             for (service in gatt.services) {
                 val svcUuid = service.uuid.toString()
                 val isRingSvc = driver.serviceUUIDs.any { it == svcUuid }
@@ -362,6 +373,12 @@ class RingBLEClient(private val context: Context) {
                     val pct = value[0].toInt() and 0xFF
                     updateState { copy(batteryPercent = pct) }
                     PulseEventBus.publishBlocking(PulseEvent.BatteryLevel(pct))
+                }
+            } else if (characteristic.uuid == FW_REV_UUID) {
+                val fw = characteristic.value?.let { String(it) }?.trim()
+                if (fw != null && fw.isNotEmpty()) {
+                    updateState { copy(firmwareVersion = fw) }
+                    onFirmwareRead?.invoke(fw)
                 }
             }
         }
@@ -453,5 +470,7 @@ class RingBLEClient(private val context: Context) {
         private const val LAST_PERIPHERAL_KEY = "ring.lastPeripheralIdentifier"
         private const val LAST_DEVICE_TYPE_KEY = "ring.lastDeviceType"
         private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        private val DIS_SERVICE_UUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb")
+        private val FW_REV_UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
     }
 }

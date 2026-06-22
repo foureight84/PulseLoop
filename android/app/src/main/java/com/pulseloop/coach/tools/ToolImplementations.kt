@@ -1,5 +1,6 @@
 package com.pulseloop.coach.tools
 
+import com.pulseloop.ring.MeasurementKind
 import kotlinx.serialization.json.*
 
 /**
@@ -7,19 +8,29 @@ import kotlinx.serialization.json.*
  * Read-only retrieval tools.
  */
 object RetrievalTools {
-    val all: List<CoachToolDef> by lazy { listOf(dailySummary, metricSeries, sleepSummary, profile) }
+    val all: List<CoachToolDef> get() = listOf(makeDailySummary(), makeMetricSeries(), makeSleepSummary(), makeProfile())
 
-    private val profile = CoachToolDef(
+    private fun makeProfile() = CoachToolDef(
         name = "get_profile_context",
         publicLabel = "Checking your profile and ring status",
         description = "Get user profile, goals, device sync status, and data-quality warnings.",
         parameters = JsonObject(mapOf("type" to JsonPrimitive("object"), "properties" to JsonObject(emptyMap()), "additionalProperties" to JsonPrimitive(false))),
     ) { _, ctx ->
-        // Phase 5: returns mock profile — real Room queries in Phase 6 integration
-        ToolResult("""{"profile":{"name":"User","age":30},"device":{"state":"connected","battery_percent":85},"goals":{"steps_daily":10000,"sleep_hours":8},"timezone":"UTC","data_quality_warnings":[]}""")
+        val db = ctx.db
+        if (db == null) {
+            ToolResult("""{"error":"database not available"}""", isError = true)
+        } else {
+            val result = kotlinx.coroutines.runBlocking {
+                val profile = db.userProfileDao().get()
+                val device = db.deviceDao().current()
+                val goal = db.userGoalDao().get()
+                """{"profile":{"${if (profile?.name != null) """"name":"${profile.name}",""" else ""}"age":${profile?.age ?: "null"}},"device":{"state":"${device?.stateRaw ?: "idle"}","battery_percent":${device?.batteryPercent ?: 0}},"goals":{"steps_daily":${goal?.steps ?: 10000},"sleep_hours":${(goal?.sleepMinutes ?: 480) / 60}},"timezone":"${java.time.ZoneId.systemDefault().id}","data_quality_warnings":[]}"""
+            }
+            ToolResult(result)
+        }
     }
 
-    private val dailySummary = CoachToolDef(
+    private fun makeDailySummary() = CoachToolDef(
         name = "get_daily_summary",
         publicLabel = "Reading that day's ring data",
         description = "Fetch daily activity and biometric summary for a local date (YYYY-MM-DD).",
@@ -29,11 +40,28 @@ object RetrievalTools {
             "required" to JsonArray(listOf(JsonPrimitive("date"))),
             "additionalProperties" to JsonPrimitive(false),
         )),
-    ) { _, _ ->
-        ToolResult("""{"date":"2026-06-21","data_available":true,"activity":{"steps":8432,"calories":342,"distance_km":5.2,"active_minutes":45},"hr":{"mean":72,"min":58,"max":142},"sleep":{"total_min":443,"score":85}}""")
+    ) { args, ctx ->
+        val db = ctx.db
+        if (db == null) return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val date = try { json.decodeFromString<Map<String, String>>(args)["date"] } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"missing 'date' argument"}""", isError = true)
+        val result = kotlinx.coroutines.runBlocking {
+            val dayTs = CoachDataAccess.parseLocalDate(date)
+            if (dayTs == null) return@runBlocking """{"error":"invalid date: $date"}"""
+            val activity = db.activityDailyDao().byDay(dayTs)
+            val hrVals = db.measurementDao().range(MeasurementKind.HEART_RATE.name, dayTs, dayTs + 86400000L)
+            val hrStats = if (hrVals.isNotEmpty()) {
+                val vals = hrVals.map { it.value }
+                """"mean":${(vals.average() * 10).toLong() / 10.0},"min":${vals.minOrNull()!!.toInt()},"max":${vals.maxOrNull()!!.toInt()}""""
+            } else null
+            val sleep = db.sleepSessionDao().byDay(dayTs)
+            """{"date":"$date","data_available":${activity != null || hrVals.isNotEmpty()},"activity":{"${if (activity != null) """steps":${activity.steps},"calories":${(activity.calories * 10).toLong() / 10.0},"distance_km":${(activity.distanceMeters / 1000 * 10).toLong() / 10.0},"active_minutes":${activity.activeMinutes}""" else """steps":0,"calories":0,"distance_km":0,"active_minutes":0"""}},"hr":{${hrStats ?: """"mean":null,"min":null,"max":null""""}},"sleep":${if (sleep != null) """{"total_min":${sleep.totalMinutes},"score":${sleep.totalMinutes / 5}}""" else "null"}}"""
+        }
+        ToolResult(result)
     }
 
-    private val metricSeries = CoachToolDef(
+    private fun makeMetricSeries() = CoachToolDef(
         name = "get_metric_series",
         publicLabel = "Fetching your trend data",
         description = "Fetch a time series for a metric over a date range.",
@@ -47,11 +75,30 @@ object RetrievalTools {
             "required" to JsonArray(listOf(JsonPrimitive("metric"), JsonPrimitive("start_date"), JsonPrimitive("end_date"))),
             "additionalProperties" to JsonPrimitive(false),
         )),
-    ) { _, _ ->
-        ToolResult("""{"metric":"steps","points":[{"date":"2026-06-15","value":7560},{"date":"2026-06-16","value":9100},{"date":"2026-06-17","value":8230},{"date":"2026-06-18","value":10200},{"date":"2026-06-19","value":6800},{"date":"2026-06-20","value":9400},{"date":"2026-06-21","value":8432}]}""")
+    ) { args, ctx ->
+        val db = ctx.db
+        if (db == null) return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, String>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val metric = params["metric"] ?: return@CoachToolDef ToolResult("""{"error":"missing 'metric'"}""", isError = true)
+        val start = params["start_date"] ?: return@CoachToolDef ToolResult("""{"error":"missing 'start_date'"}""", isError = true)
+        val end = params["end_date"] ?: start
+        val result = kotlinx.coroutines.runBlocking {
+            val points = CoachDataAccess.seriesPoints(db, metric, start, end, "day")
+            val sb = StringBuilder()
+            sb.append("""{"metric":"$metric","points":[""")
+            points.forEachIndexed { i, (date, value) ->
+                if (i > 0) sb.append(",")
+                sb.append("""{"date":"$date","value":$value}""")
+            }
+            sb.append("]}")
+            sb.toString()
+        }
+        ToolResult(result)
     }
 
-    private val sleepSummary = CoachToolDef(
+    private fun makeSleepSummary() = CoachToolDef(
         name = "get_sleep_summary",
         publicLabel = "Looking at your sleep",
         description = "Get sleep summary for a date or date range.",
@@ -64,8 +111,27 @@ object RetrievalTools {
             "required" to JsonArray(listOf(JsonPrimitive("start_date"))),
             "additionalProperties" to JsonPrimitive(false),
         )),
-    ) { _, _ ->
-        ToolResult("""{"nights":[{"date":"2026-06-20","total_min":443,"stages":{"light":225,"deep":83,"rem":90,"awake":45},"score":85}]}""")
+    ) { args, ctx ->
+        val db = ctx.db
+        if (db == null) return@CoachToolDef ToolResult("""{"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, String>>(args) } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"invalid arguments"}""", isError = true)
+        val start = params["start_date"] ?: return@CoachToolDef ToolResult("""{"error":"missing 'start_date'"}""", isError = true)
+        val end = params["end_date"] ?: start
+        val result = kotlinx.coroutines.runBlocking {
+            val sessions = CoachDataAccess.sleepSessions(db, start, end)
+            val sb = StringBuilder()
+            sb.append("""{"nights":[""")
+            sessions.forEachIndexed { i, s ->
+                if (i > 0) sb.append(",")
+                val dateStr = CoachDataAccess.localDateString(s.date)
+                sb.append("""{"date":"$dateStr","total_min":${s.totalMinutes},"score":${(s.totalMinutes / 5).coerceAtMost(100)}}""")
+            }
+            sb.append("]}")
+            sb.toString()
+        }
+        ToolResult(result)
     }
 }
 
@@ -183,8 +249,29 @@ object MemoryTools {
             "required" to JsonArray(listOf(JsonPrimitive("key"), JsonPrimitive("value"))),
             "additionalProperties" to JsonPrimitive(false),
         )),
-    ) { _, _ ->
-        ToolResult("""{"saved":true}""")
+    ) { args, ctx ->
+        val db = ctx.db
+        if (db == null) return@CoachToolDef ToolResult("""{"saved":false,"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, JsonElement>>(args) } catch (_: Exception) { null }
+        if (params == null) return@CoachToolDef ToolResult("""{"saved":false,"error":"invalid arguments"}""", isError = true)
+        val key = params["key"]?.jsonPrimitive?.content ?: return@CoachToolDef ToolResult("""{"saved":false,"error":"missing key"}""", isError = true)
+        val value = params["value"]?.jsonPrimitive?.content ?: ""
+        val importance = params["importance"]?.jsonPrimitive?.int ?: 5
+        kotlinx.coroutines.runBlocking {
+            val existing = db.coachMemoryDao().byKey(key)
+            db.coachMemoryDao().upsert(
+                com.pulseloop.data.entity.CoachMemoryEntity(
+                    key = key,
+                    value = value,
+                    importance = importance,
+                    memoryType = "user",
+                    expiresAt = System.currentTimeMillis() + 90 * 86400_000L,  // 90 days
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
+        }
+        ToolResult("""{"saved":true,"key":"$key"}""")
     }
 }
 
@@ -218,8 +305,24 @@ object ActionTools {
             "required" to JsonArray(listOf(JsonPrimitive("steps"))),
             "additionalProperties" to JsonPrimitive(false),
         )),
-    ) { _, _ ->
-        ToolResult("""{"set":true}""")
+    ) { args, ctx ->
+        val db = ctx.db ?: return@CoachToolDef ToolResult("""{"set":false,"error":"database not available"}""", isError = true)
+        val json = Json { ignoreUnknownKeys = true }
+        val params = try { json.decodeFromString<Map<String, JsonElement>>(args) } catch (_: Exception) { null }
+        if (params == null) return@CoachToolDef ToolResult("""{"set":false,"error":"invalid arguments"}""", isError = true)
+        val steps = params["steps"]?.jsonPrimitive?.int ?: return@CoachToolDef ToolResult("""{"set":false,"error":"missing steps"}""", isError = true)
+        kotlinx.coroutines.runBlocking {
+            val existing = db.userGoalDao().get()
+            val updated = if (existing != null) {
+                existing.copy(steps = steps, updatedAt = System.currentTimeMillis())
+            } else {
+                com.pulseloop.data.entity.UserGoalEntity(steps = steps, updatedAt = System.currentTimeMillis())
+            }
+            db.userGoalDao().upsert(updated)
+            // Also push to ring if connected
+            ctx.coordinator?.setGoal(steps)
+        }
+        ToolResult("""{"set":true,"steps":$steps,"message":"Daily step goal set to $steps"}""")
     }
 
     private val triggerMeasurement = CoachToolDef(
@@ -234,7 +337,30 @@ object ActionTools {
             "required" to JsonArray(listOf(JsonPrimitive("kind"))),
             "additionalProperties" to JsonPrimitive(false),
         )),
-    ) { _, _ ->
-        ToolResult("""{"status":"started","note":"measurement in progress — results will stream in live"}""")
+    ) { args, ctx ->
+        val json = Json { ignoreUnknownKeys = true }
+        val kind = try { json.decodeFromString<Map<String, String>>(args)["kind"] } catch (_: Exception) { null }
+            ?: return@CoachToolDef ToolResult("""{"error":"missing kind"}""", isError = true)
+        val coordinator = ctx.coordinator
+        if (coordinator == null || !coordinator.isConnected) {
+            ToolResult("""{"status":"unavailable","note":"Ring is not connected — cannot take a live reading."}""")
+        } else {
+            kotlinx.coroutines.runBlocking {
+                when (kind) {
+                    "hr" -> coordinator.measureHR()
+                    "spo2" -> coordinator.measureSpO2()
+                }
+            }
+            val value = when (kind) {
+                "hr" -> coordinator.latestHRValue
+                "spo2" -> coordinator.latestSpO2Value
+                else -> null
+            }
+            if (value != null) {
+                ToolResult("""{"status":"completed","kind":"$kind","value":$value,"unit":"${if (kind == "hr") "bpm" else "%"}"}""")
+            } else {
+                ToolResult("""{"status":"failed","kind":"$kind","note":"Measurement did not return a reading. Ring may be out of range."}""")
+            }
+        }
     }
 }

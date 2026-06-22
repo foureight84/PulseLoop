@@ -148,10 +148,7 @@ class CoachViewModel(
         ) }
         viewModelScope.launch {
             try {
-                val packet = com.pulseloop.coach.context.CoachContextPacket(
-                    today = java.time.LocalDate.now().toString(),
-                    timezone = java.time.ZoneId.systemDefault().id,
-                )
+                val packet = com.pulseloop.coach.context.CoachContextBuilder.build(db)
                 val priorMessages = _state.value.messages.dropLast(1).map {
                     com.pulseloop.coach.orchestration.CoachOrchestrator.PriorMessage(it.role, it.text)
                 }

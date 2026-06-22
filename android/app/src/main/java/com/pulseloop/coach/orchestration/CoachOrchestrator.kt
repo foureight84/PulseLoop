@@ -41,20 +41,11 @@ class CoachOrchestrator(
         packet: CoachContextPacket,
         recentMessages: List<PriorMessage> = emptyList(),
     ): TurnResult {
-        if (!flags.coachEnabled) return TurnResult(
-            CoachResponse(
-                responseType = com.pulseloop.coach.schema.CoachResponseType.ERROR_RECOVERY,
-                title = "Coach Disabled", summary = "The coach is not enabled. Check Settings."
-            )
-        )
+        if (!flags.coachEnabled) return TurnResult(CoachFallbacks.scripted(packet))
         return try {
             runOpenAI(userText, packet, recentMessages)
         } catch (e: Exception) {
-            TurnResult(CoachResponse(
-                responseType = com.pulseloop.coach.schema.CoachResponseType.ERROR_RECOVERY,
-                title = "Something went wrong",
-                summary = "Sorry, I couldn't complete that. Please try again.",
-            ))
+            TurnResult(CoachFallbacks.fallback())
         }
     }
 
@@ -125,10 +116,7 @@ class CoachOrchestrator(
             val parsed = CoachResponseParser.parse(current.outputText)
             if (parsed != null) return parsed
             attempts++
-            if (attempts > maxFinalAttempts) return CoachResponse(
-                responseType = com.pulseloop.coach.schema.CoachResponseType.ERROR_RECOVERY,
-                title = "Parse Error", summary = "I had trouble formatting my response. Please try again."
-            )
+            if (attempts > maxFinalAttempts) return CoachFallbacks.parseError()
             val repair = message("user", "Your previous output did not match the required coach_response JSON schema. Return only valid JSON for that schema now.")
             current = send(listOf(repair), emptyList(), coachResponseTextFormat, current.id)
         }

@@ -125,11 +125,23 @@ class EventPersistenceSubscriber(
             is PulseEvent.SyncProgress -> {} // UI feedback, no persistence needed
             is PulseEvent.HeartRateComplete -> {}
             is PulseEvent.RawPacket -> {
-                // Persist raw hex for diagnostics via raw SQL
-                val hex = event.data.joinToString("") { "%02x".format(it) }
-                val sql = "INSERT INTO raw_packets (id, timestamp, directionRaw, hexPayload, decodedKind) " +
-                        "VALUES ('${java.util.UUID.randomUUID()}', ${System.currentTimeMillis()}, '${event.direction.name}', '$hex', '${event.decoded.kind}')"
-                try { db.openHelper.writableDatabase.execSQL(sql) } catch (_: Exception) {}
+                // Persist raw hex for diagnostics
+                val cv = android.content.ContentValues().apply {
+                    put("id", java.util.UUID.randomUUID().toString())
+                    put("timestamp", System.currentTimeMillis())
+                    put("directionRaw", event.direction.name)
+                    put("commandId", event.data.getOrNull(0)?.toInt()?.and(0xFF) ?: 0)
+                    put("hexPayload", event.data.joinToString("") { "%02x".format(it) })
+                    put("decodedKind", event.decoded.kind)
+                    put("confidenceRaw", "known")
+                }
+                try {
+                    db.openHelper.writableDatabase.insert(
+                        "raw_packets",
+                        android.database.sqlite.SQLiteDatabase.CONFLICT_NONE,
+                        cv
+                    )
+                } catch (_: Exception) {}
             }
             is PulseEvent.ActivitySyncReset -> {}
         }

@@ -173,6 +173,18 @@ interface UserGoalDao {
 }
 
 @Dao
+interface WearableLogDao {
+    @Query("SELECT * FROM wearable_logs ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 500): List<WearableLogEntity>
+
+    @Insert
+    suspend fun insert(log: WearableLogEntity)
+
+    @Query("DELETE FROM wearable_logs WHERE timestamp < :before")
+    suspend fun deleteOlderThan(before: Long)
+}
+
+@Dao
 interface CoachSummaryDao {
     @Query("SELECT * FROM coach_summaries WHERE kind = :kind AND scopeKey = :scopeKey LIMIT 1")
     suspend fun get(kind: String, scopeKey: String): CoachSummaryEntity?

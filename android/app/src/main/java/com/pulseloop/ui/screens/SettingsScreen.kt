@@ -24,8 +24,9 @@ import com.pulseloop.settings.ApiKeyStore
 import kotlinx.coroutines.launch
 
 /**
- * Ported from SettingsView.swift.
- * Settings screen: API key, model selection, coach toggles, demo data, notifications.
+ * Ported from SettingsView.swift + CoachSettingsSection.swift.
+ * Settings screen: API key, model selection, provider mode, write tools,
+ * live measurements, coach memory list, notifications, demo data.
  */
 @Composable
 fun SettingsScreen() {
@@ -38,7 +39,20 @@ fun SettingsScreen() {
     var selectedModel by remember { mutableStateOf(keyStore.model) }
     var coachEnabled by remember { mutableStateOf(keyStore.coachEnabled) }
     var webSearch by remember { mutableStateOf(keyStore.webSearchEnabled) }
+    var writeTools by remember { mutableStateOf(keyStore.writeToolsEnabled) }
+    var liveMeasurements by remember { mutableStateOf(keyStore.liveMeasurementsEnabled) }
+    var notificationEnabled by remember { mutableStateOf(keyStore.notificationsEnabled) }
     var showSeedDialog by remember { mutableStateOf(false) }
+    var showMemory by remember { mutableStateOf(false) }
+
+    // Coach memories — loaded on composition via LaunchedEffect
+    val db = remember { PulseLoopDatabase.getInstance(context) }
+    var memories by remember { mutableStateOf(emptyList<com.pulseloop.data.entity.CoachMemoryEntity>()) }
+    LaunchedEffect(coachEnabled) {
+        if (coachEnabled) {
+            memories = db.coachMemoryDao().allRanked()
+        }
+    }
 
     val models = listOf("gpt-5.4", "gpt-4o", "gpt-4o-mini", "o4-mini")
 
@@ -48,95 +62,249 @@ fun SettingsScreen() {
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
 
-        // Coach section
+        // AI Coach section — ported from CoachSettingsSection.swift
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
-                Text("Coach", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(12.dp))
-
-                // API Key
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("OpenAI API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = if (apiKeyVisible) androidx.compose.ui.text.input.VisualTransformation.None
-                        else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                    trailingIcon = {
-                        IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                            Icon(
-                                if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = "Toggle visibility"
-                            )
-                        }
-                    },
-                    keyboardActions = KeyboardActions(onDone = {
-                        keyStore.apiKey = apiKey
-                    }),
-                )
+                Text("AI Coach", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Stored securely in Android Keystore. Never leaves your device except to call the model.",
+                    if (coachEnabled && keyStore.apiKey.isNotBlank()) "Active — ${selectedModel}"
+                    else if (coachEnabled) "API key needed"
+                    else "Disabled",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
 
-                // Model selector
-                Text("Model", style = MaterialTheme.typography.labelMedium)
-                Spacer(Modifier.height(4.dp))
-                models.forEach { model ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = selectedModel == model,
-                            onClick = { selectedModel = model; keyStore.model = model }
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(model, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-
-                // Toggles
+                // Master toggle
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Enable Coach")
+                    Text("Enable AI Coach")
                     Switch(checked = coachEnabled, onCheckedChange = {
                         coachEnabled = it; keyStore.coachEnabled = it
+                        if (!it) {
+                            CoachNotifications.cancel(context)
+                            keyStore.notificationsEnabled = false
+                            notificationEnabled = false
+                        }
                     })
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("Web Search")
-                        Text("Uses additional tokens", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                if (coachEnabled) {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                    // Model picker as dropdown
+                    Text("Model", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(4.dp))
+                    var modelExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { modelExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selectedModel, Modifier.weight(1f))
+                            Icon(Icons.Filled.ArrowDropDown, null)
+                        }
+                        DropdownMenu(expanded = modelExpanded, onDismissRequest = { modelExpanded = false }) {
+                            models.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model) },
+                                    onClick = { selectedModel = model; keyStore.model = model; modelExpanded = false },
+                                )
+                            }
+                        }
                     }
-                    Switch(checked = webSearch, onCheckedChange = {
-                        webSearch = it; keyStore.webSearchEnabled = it
-                    })
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // API Key field (ported from CoachSettingsSection keyField)
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("OpenAI API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = if (apiKeyVisible) androidx.compose.ui.text.input.VisualTransformation.None
+                            else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                        trailingIcon = {
+                            IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                Icon(
+                                    if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    contentDescription = "Toggle visibility"
+                                )
+                            }
+                        },
+                        keyboardActions = KeyboardActions(onDone = {
+                            keyStore.apiKey = apiKey
+                        }),
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { keyStore.apiKey = apiKey },
+                            enabled = apiKey.isNotBlank(),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(if (keyStore.apiKey.isNotBlank()) "Update Key" else "Save Key")
+                        }
+                        if (keyStore.apiKey.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = { apiKey = ""; keyStore.apiKey = "" },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Remove")
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Stored securely in Android Keystore. Never leaves your device except to call the model.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider()
+
+                    // Tool toggles
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Web Search")
+                            Text("Uses additional tokens", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = webSearch, onCheckedChange = {
+                            webSearch = it; keyStore.webSearchEnabled = it
+                        })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Write Actions")
+                            Text("Set goals, log, edit data", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = writeTools, onCheckedChange = {
+                            writeTools = it; keyStore.writeToolsEnabled = it
+                        })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Live Measurements")
+                            Text("Trigger real-time ring readings", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = liveMeasurements, onCheckedChange = {
+                            liveMeasurements = it; keyStore.liveMeasurementsEnabled = it
+                        })
+                    }
                 }
             }
         }
 
-        // Notifications
+        // Notifications section — ported from CoachSettingsSection notificationsSection
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("Notifications", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { CoachNotifications.schedule(context) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Filled.Notifications, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Enable Daily Check-ins")
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Daily Check-in Notifications")
+                    Switch(checked = notificationEnabled, onCheckedChange = { enabled ->
+                        notificationEnabled = enabled
+                        keyStore.notificationsEnabled = enabled
+                        if (enabled) {
+                            CoachNotifications.schedule(context)
+                        } else {
+                            CoachNotifications.cancel(context)
+                        }
+                    })
                 }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { CoachNotifications.cancel(context) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Disable Check-ins")
+
+                if (notificationEnabled) {
+                    Spacer(Modifier.height(8.dp))
+                    // Morning time picker
+                    var morningHour by remember { mutableStateOf(keyStore.morningHour) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Morning")
+                        var amExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { amExpanded = true }) {
+                                Text(String.format("%02d:00", morningHour))
+                            }
+                            DropdownMenu(expanded = amExpanded, onDismissRequest = { amExpanded = false }) {
+                                (0..<24).forEach { h ->
+                                    DropdownMenuItem(
+                                        text = { Text(String.format("%02d:00", h)) },
+                                        onClick = { morningHour = h; keyStore.morningHour = h; amExpanded = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Evening time picker
+                    var eveningHour by remember { mutableStateOf(keyStore.eveningHour) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Evening")
+                        var pmExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { pmExpanded = true }) {
+                                Text(String.format("%02d:00", eveningHour))
+                            }
+                            DropdownMenu(expanded = pmExpanded, onDismissRequest = { pmExpanded = false }) {
+                                (0..<24).forEach { h ->
+                                    DropdownMenuItem(
+                                        text = { Text(String.format("%02d:00", h)) },
+                                        onClick = { eveningHour = h; keyStore.eveningHour = h; pmExpanded = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                CoachNotifications.showNow(
+                                    context,
+                                    "PulseLoop Coach",
+                                    "This is a test check-in notification.",
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Send Test Check-in Now")
+                    }
+                }
+            }
+        }
+
+        // Coach Memory — ported from CoachSettingsSection memoryRow
+        if (memories.isNotEmpty() && coachEnabled) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Coach Memory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { showMemory = !showMemory }) {
+                            Text(if (showMemory) "Hide" else "Show (${memories.size})")
+                        }
+                    }
+                    if (showMemory) {
+                        Spacer(Modifier.height(8.dp))
+                        memories.forEach { memory ->
+                            Card(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(memory.key, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                        Text(memory.value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                                    }
+                                    IconButton(onClick = {
+                                        scope.launch { db.coachMemoryDao().deleteByKey(memory.key) }
+                                    }) {
+                                        Icon(Icons.Filled.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -174,6 +342,8 @@ fun SettingsScreen() {
                 )
             }
         }
+
+        Spacer(Modifier.height(32.dp))
     }
 
     // Seed confirmation dialog

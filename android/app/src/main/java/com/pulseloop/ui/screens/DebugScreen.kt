@@ -1,21 +1,23 @@
 package com.pulseloop.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.pulseloop.ui.components.SimpleLineChart
+import com.pulseloop.data.PulseLoopDatabase
+import com.pulseloop.diagnostics.DiagnosticsExporter
+import kotlinx.coroutines.launch
 
 /**
  * Ported from DebugView.swift.
- * Developer diagnostics: raw packet trace + DB stats.
+ * Developer diagnostics: raw packet trace + DB stats + export.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +26,9 @@ fun DebugScreen(
     dbStats: Map<String, Int> = emptyMap(),
     onBack: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -58,6 +63,37 @@ fun DebugScreen(
                                 Text(table, style = MaterialTheme.typography.bodyMedium)
                                 Text("$count rows", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                             }
+                        }
+                    }
+                }
+            }
+
+            // Diagnostics Export
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Diagnostics", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Export diagnostics report with app, device, and wearable log info as JSON.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    val db = PulseLoopDatabase.getInstance(context)
+                                    try {
+                                        val intent = DiagnosticsExporter.shareIntent(context, db)
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        // Share sheet not available
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Filled.Share, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Export Diagnostics")
                         }
                     }
                 }

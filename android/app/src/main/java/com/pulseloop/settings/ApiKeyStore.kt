@@ -37,6 +37,26 @@ class ApiKeyStore(context: Context) {
         get() = prefs.getBoolean(KEY_WEB_SEARCH, false)
         set(value) { prefs.edit().putBoolean(KEY_WEB_SEARCH, value).apply() }
 
+    var writeToolsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WRITE_TOOLS, false)
+        set(value) { prefs.edit().putBoolean(KEY_WRITE_TOOLS, value).apply() }
+
+    var liveMeasurementsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_LIVE_MEASUREMENTS, false)
+        set(value) { prefs.edit().putBoolean(KEY_LIVE_MEASUREMENTS, value).apply() }
+
+    var notificationsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFICATIONS, false)
+        set(value) { prefs.edit().putBoolean(KEY_NOTIFICATIONS, value).apply() }
+
+    var morningHour: Int
+        get() = prefs.getInt(KEY_MORNING_HOUR, 8)
+        set(value) { prefs.edit().putInt(KEY_MORNING_HOUR, value).apply() }
+
+    var eveningHour: Int
+        get() = prefs.getInt(KEY_EVENING_HOUR, 20)
+        set(value) { prefs.edit().putInt(KEY_EVENING_HOUR, value).apply() }
+
     var onboardingCompleted: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING, false)
         set(value) { prefs.edit().putBoolean(KEY_ONBOARDING, value).apply() }
@@ -50,6 +70,11 @@ class ApiKeyStore(context: Context) {
         private const val KEY_MODEL = "coach_model"
         private const val KEY_COACH_ENABLED = "coach_enabled"
         private const val KEY_WEB_SEARCH = "web_search_enabled"
+        private const val KEY_WRITE_TOOLS = "write_tools_enabled"
+        private const val KEY_LIVE_MEASUREMENTS = "live_measurements_enabled"
+        private const val KEY_NOTIFICATIONS = "notifications_enabled"
+        private const val KEY_MORNING_HOUR = "morning_hour"
+        private const val KEY_EVENING_HOUR = "evening_hour"
         private const val KEY_ONBOARDING = "onboarding_completed"
         private const val KEY_DEMO_SEEDED = "demo_data_seeded"
     }

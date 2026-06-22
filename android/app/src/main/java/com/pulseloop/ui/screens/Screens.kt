@@ -141,10 +141,11 @@ fun TodayScreen(navController: androidx.navigation.NavController? = null, viewMo
 
 /**
  * Vitals dashboard — ported from VitalsView.swift.
- * Shows historical trends: HR, SpO2, HRV, stress, temperature.
+ * Shows historical trends: HR, SpO2, HRV, stress, temperature with real data from Room.
  */
 @Composable
-fun VitalsScreen() {
+fun VitalsScreen(viewModel: VitalsViewModel? = null) {
+    val state by (viewModel?.state?.collectAsState() ?: remember { mutableStateOf(VitalsViewModel.VitalsState()) })
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -152,51 +153,140 @@ fun VitalsScreen() {
     ) {
         item {
             Text("Vitals", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Text("Live measurements and trends", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
         }
 
+        // Heart Rate
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Heart Rate Trend", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(24.dp))
-                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        Text("Chart placeholder", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        MetricTile(Modifier.weight(1f), "Min", "58", "bpm", null)
-                        Spacer(Modifier.width(8.dp))
-                        MetricTile(Modifier.weight(1f), "Avg", "72", "bpm", null)
-                        Spacer(Modifier.width(8.dp))
-                        MetricTile(Modifier.weight(1f), "Max", "142", "bpm", null)
+                    Text("Heart Rate", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    if (state.hrSamples.isNotEmpty()) {
+                        val avg = state.hrSamples.average().toInt()
+                        val min = state.hrSamples.min().toInt()
+                        val max = state.hrSamples.max().toInt()
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(state.latestHr?.toString() ?: "--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(" bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                        Text("Range: $min – $max · Avg: $avg bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        SimpleLineChart(points = state.hrSamples, color = androidx.compose.ui.graphics.Color(0xFFE53935))
+                    } else {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text("--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(" bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                        Text("No HR samples yet — sync your ring to start your trend.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
 
+        // SpO2
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("SpO₂ · 7 days", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(24.dp))
-                    Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text("Chart placeholder", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Blood Oxygen", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    if (state.spo2Samples.isNotEmpty()) {
+                        val avg = state.spo2Samples.average().toInt()
+                        val min = state.spo2Samples.min().toInt()
+                        val max = state.spo2Samples.max().toInt()
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(state.latestSpo2?.toString() ?: "--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(" %", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                        Text("Range: $min – $max% · Avg: $avg%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        SimpleLineChart(points = state.spo2Samples, color = androidx.compose.ui.graphics.Color(0xFF1E88E5))
+                    } else {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text("--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(" %", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                        Text("No SpO₂ samples yet — take a reading to start your trend.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
 
-        listOf("HRV" to "42 ms", "Stress" to "Low", "Temperature" to "36.5°C").forEach { (label, value) ->
+        // Stress (capability-gated)
+        if (state.supportsStress) {
             item {
                 Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(label, style = MaterialTheme.typography.titleMedium)
-                        Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Stress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        if (state.stressSamples.isNotEmpty()) {
+                            val latest = state.latestStress?.toInt() ?: 0
+                            val label = when {
+                                latest <= 30 -> "Low"
+                                latest <= 60 -> "Moderate"
+                                else -> "High"
+                            }
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            SimpleLineChart(points = state.stressSamples, color = androidx.compose.ui.graphics.Color(0xFF8E24AA))
+                        } else {
+                            Text("No stress data yet — wear the ring through the day and sync.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         }
+
+        // HRV (capability-gated)
+        if (state.supportsHrv) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("HRV", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        val hrvVal = state.latestHrv
+                        if (hrvVal != null && state.hrvSamples.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(String.format("%.0f", hrvVal), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(" ms", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            SimpleLineChart(points = state.hrvSamples, color = androidx.compose.ui.graphics.Color(0xFF43A047))
+                        } else {
+                            Text("No HRV data yet — HRV builds up over a few hours of wear.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Temperature (capability-gated)
+        if (state.supportsTemp) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Skin Temperature", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        val tempVal = state.latestTemp
+                        if (tempVal != null && state.tempSamples.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(String.format("%.1f", tempVal), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(" °C", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043))
+                        } else {
+                            Text("No temperature data yet — temperature trends appear after overnight wear.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(32.dp)) }
     }
 }
 

@@ -32,6 +32,7 @@ import com.pulseloop.data.entity.*
         RawPacketEntity::class,
         DerivedUpdateEntity::class,
         CoachSummaryEntity::class,
+        WearableLogEntity::class,
     ],
     version = 2,
     exportSchema = false,
@@ -51,6 +52,7 @@ abstract class PulseLoopDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun userGoalDao(): UserGoalDao
     abstract fun coachSummaryDao(): CoachSummaryDao
+    abstract fun wearableLogDao(): WearableLogDao
 
     companion object {
         @Volatile private var INSTANCE: PulseLoopDatabase? = null

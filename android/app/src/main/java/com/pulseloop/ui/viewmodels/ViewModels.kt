@@ -121,6 +121,91 @@ class ActivityViewModel(db: PulseLoopDatabase) : ViewModel() {
 }
 
 /**
+ * VitalsViewModel — reads Room data for the Vitals screen.
+ * Ported from MetricsService.metricRange in PulseServices.swift.
+ */
+class VitalsViewModel(db: PulseLoopDatabase) : ViewModel() {
+    private val now = System.currentTimeMillis()
+    private val twentyFourHoursAgo = now - 24 * 3600_000L
+
+    data class VitalsState(
+        val hrSamples: List<Double> = emptyList(),
+        val spo2Samples: List<Double> = emptyList(),
+        val hrvSamples: List<Double> = emptyList(),
+        val stressSamples: List<Double> = emptyList(),
+        val tempSamples: List<Double> = emptyList(),
+        val latestHr: Int? = null,
+        val latestSpo2: Int? = null,
+        val latestHrv: Double? = null,
+        val latestStress: Double? = null,
+        val latestTemp: Double? = null,
+        val supportsHrv: Boolean = false,
+        val supportsStress: Boolean = false,
+        val supportsTemp: Boolean = false,
+    )
+
+    private val _state = MutableStateFlow(VitalsState())
+    val state: StateFlow<VitalsState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val device = db.deviceDao().current()
+            val caps = device?.capabilities ?: setOf(
+                com.pulseloop.ring.WearableCapability.HEART_RATE,
+                com.pulseloop.ring.WearableCapability.SPO2,
+                com.pulseloop.ring.WearableCapability.STEPS,
+                com.pulseloop.ring.WearableCapability.SLEEP,
+                com.pulseloop.ring.WearableCapability.BATTERY,
+            )
+
+            // HR
+            val hr = db.measurementDao().range(MeasurementKind.HEART_RATE.name, twentyFourHoursAgo, now)
+            val hrVals = hr.map { it.value }
+            val latestHr = hr.lastOrNull()?.value?.toInt()
+
+            // SpO2
+            val spo2 = db.measurementDao().range(MeasurementKind.SPO2.name, twentyFourHoursAgo, now)
+            val spo2Vals = spo2.map { it.value }
+            val latestSpo2 = spo2.lastOrNull()?.value?.toInt()
+
+            // HRV
+            val hrv = if (caps.contains(com.pulseloop.ring.WearableCapability.HRV) || caps.isEmpty()) {
+                db.measurementDao().range(MeasurementKind.HRV.name, twentyFourHoursAgo, now)
+            } else emptyList()
+            val hrvVals = hrv.map { it.value }
+
+            // Stress
+            val stress = if (caps.contains(com.pulseloop.ring.WearableCapability.STRESS) || caps.isEmpty()) {
+                db.measurementDao().range(MeasurementKind.STRESS.name, twentyFourHoursAgo, now)
+            } else emptyList()
+            val stressVals = stress.map { it.value }
+
+            // Temperature
+            val temp = if (caps.contains(com.pulseloop.ring.WearableCapability.TEMPERATURE) || caps.isEmpty()) {
+                db.measurementDao().range(MeasurementKind.TEMPERATURE.name, twentyFourHoursAgo, now)
+            } else emptyList()
+            val tempVals = temp.map { it.value }
+
+            _state.value = VitalsState(
+                hrSamples = hrVals,
+                spo2Samples = spo2Vals,
+                hrvSamples = hrvVals,
+                stressSamples = stressVals,
+                tempSamples = tempVals,
+                latestHr = latestHr,
+                latestSpo2 = latestSpo2,
+                latestHrv = hrv.lastOrNull()?.value,
+                latestStress = stress.lastOrNull()?.value,
+                latestTemp = temp.lastOrNull()?.value,
+                supportsHrv = caps.isEmpty() || caps.contains(com.pulseloop.ring.WearableCapability.HRV),
+                supportsStress = caps.isEmpty() || caps.contains(com.pulseloop.ring.WearableCapability.STRESS),
+                supportsTemp = caps.isEmpty() || caps.contains(com.pulseloop.ring.WearableCapability.TEMPERATURE),
+            )
+        }
+    }
+}
+
+/**
  * CoachViewModel — wires the coach orchestrator to the UI.
  */
 class CoachViewModel(

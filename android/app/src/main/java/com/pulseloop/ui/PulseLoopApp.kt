@@ -67,6 +67,7 @@ fun PulseLoopApp() {
 
         // ── ViewModels ───────────────────────────────────────────────────
         val todayVM = remember { TodayViewModel(db) }
+        val vitalsVM = remember { VitalsViewModel(db) }
         val sleepVM = remember { SleepViewModel(db) }
         val activityVM = remember { ActivityViewModel(db) }
         val coachVM = remember { CoachViewModel(db, coachOrchestrator) }
@@ -137,7 +138,7 @@ fun PulseLoopApp() {
                 modifier = Modifier.padding(padding),
             ) {
                 composable("today") { TodayScreen(navController, todayVM) }
-                composable("vitals") { VitalsScreen() }
+                composable("vitals") { VitalsScreen(viewModel = vitalsVM) }
                 composable("sleep") { SleepScreen(navController = navController, viewModel = sleepVM) }
                 composable("activity") { ActivityScreen(navController = navController, viewModel = activityVM) }
                 composable("coach") { CoachScreen(navController = navController, viewModel = coachVM) }

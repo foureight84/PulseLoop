@@ -310,7 +310,12 @@ class RingBLEClient(private val context: Context) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         bluetoothGatt = gatt
-                        gatt.requestMtu(512)  // request before service discovery for best results
+                        // Trigger OS-level bonding (matches official app behavior).
+                        // Shows system pairing dialog so the ring is properly paired
+                        // at the OS level. This makes Forget+RingSyncWorker work
+                        // correctly without needing a phone restart.
+                        try { gatt.device.createBond() } catch (_: Exception) {}
+                        gatt.requestMtu(512)
                         gatt.discoverServices()
                     } else {
                         updateState { copy(lastError = "GATT connect failed: $status") }

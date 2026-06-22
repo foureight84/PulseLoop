@@ -34,6 +34,7 @@ data class ToolExecutionContext(
     val db: com.pulseloop.data.PulseLoopDatabase? = null,  // Room database for tools
     val flags: CoachFeatureFlags = CoachFeatureFlags(),
     val coordinator: com.pulseloop.service.RingSyncCoordinator? = null,  // for live measurements
+    val pendingActions: MutableList<com.pulseloop.coach.orchestration.PendingAction> = mutableListOf(),
 )
 
 data class CoachFeatureFlags(

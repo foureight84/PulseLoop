@@ -69,6 +69,7 @@ sealed class RingDecodedEvent {
         is Status -> Instant.EPOCH
         is TimeSyncAck -> this._timestamp
         is CommandAck -> Instant.EPOCH
+        is FirmwareVersion -> Instant.EPOCH
         is Unknown -> Instant.EPOCH
     }
 
@@ -211,6 +212,14 @@ sealed class RingDecodedEvent {
         override val kind = "status"
         override val confidence = DecodeConfidence.KNOWN
         override val debugJSON = """{"address":"${address ?: ""}","firmware":"${firmware ?: ""}"}"""
+    }
+
+    data class FirmwareVersion(
+        val version: Int? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "firmware_version"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"version":${version ?: 0}}"""
     }
 
     data class TimeSyncAck(

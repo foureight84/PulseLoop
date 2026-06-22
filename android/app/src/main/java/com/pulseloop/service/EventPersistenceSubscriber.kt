@@ -133,6 +133,15 @@ class EventPersistenceSubscriber(
                 ))
             }
             is PulseEvent.ActivitySyncReset -> {}
+            is PulseEvent.FirmwareVersion -> {
+                val device = db.deviceDao().current()
+                if (device != null && event.version != null) {
+                    // Combine with existing firmware hex to produce "003A002AV138"
+                    val base = device.firmwareVersion ?: ""
+                    val combined = if (base.isNotEmpty()) "${base}V${event.version}" else "V${event.version}"
+                    db.deviceDao().upsert(device.copy(firmwareVersion = combined, updatedAt = System.currentTimeMillis()))
+                }
+            }
         }
     }
 

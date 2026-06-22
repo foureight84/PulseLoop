@@ -121,6 +121,14 @@ object RingDecoder {
             }
             0x27 -> RingDecodedEvent.HeartRateComplete(_timestamp = now)
             0x28 -> RingDecodedEvent.Spo2Complete(_timestamp = now)
+            0xF6 -> {
+                // Version variant: bytes [4-5] = LE u16 version number
+                // Example: 8a 00 → 138 → "V138" (matches official app)
+                val version = if (bytes.size >= 6) {
+                    ((bytes[5].toInt() and 0xFF) shl 8) or (bytes[4].toInt() and 0xFF)
+                } else null
+                RingDecodedEvent.FirmwareVersion(version = version)
+            }
             else -> RingDecodedEvent.Unknown(commandId = packet.commandId, raw = bytes)
         }
     }

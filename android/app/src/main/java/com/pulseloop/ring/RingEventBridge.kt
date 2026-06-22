@@ -77,6 +77,9 @@ object RingEventBridge {
         is RingDecodedEvent.TimeSyncAck, is RingDecodedEvent.CommandAck, is RingDecodedEvent.Unknown ->
             emptyList()
 
+        is RingDecodedEvent.FirmwareVersion ->
+            listOf(PulseEvent.FirmwareVersion(decoded.version))
+
         is RingDecodedEvent.Spo2Progress, is RingDecodedEvent.Spo2Complete ->
             emptyList() // Phase 1 does not fan these out
     }

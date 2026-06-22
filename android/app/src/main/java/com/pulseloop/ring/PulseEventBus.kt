@@ -32,6 +32,7 @@ sealed class PulseEvent {
     data class TemperatureSample(val celsius: Double, val timestamp: java.time.Instant) : PulseEvent()
     data class SleepTimeline(val timestamp: java.time.Instant, val stages: List<SleepStage>) : PulseEvent()
     data class SyncProgress(val stage: String) : PulseEvent()
+    data class FirmwareVersion(val version: Int?) : PulseEvent()
 }
 
 enum class RingConnectionState { IDLE, SCANNING, CONNECTING, CONNECTED, DISCONNECTED, RECONNECTING, FAILED }

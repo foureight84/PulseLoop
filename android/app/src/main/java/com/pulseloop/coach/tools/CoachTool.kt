@@ -31,7 +31,9 @@ data class ToolResult(
  */
 data class ToolExecutionContext(
     val modelContext: Any? = null,   // Room database access
+    val db: com.pulseloop.data.PulseLoopDatabase? = null,  // Room database for tools
     val flags: CoachFeatureFlags = CoachFeatureFlags(),
+    val coordinator: com.pulseloop.service.RingSyncCoordinator? = null,  // for live measurements
 )
 
 data class CoachFeatureFlags(

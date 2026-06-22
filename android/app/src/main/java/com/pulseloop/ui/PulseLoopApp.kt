@@ -134,16 +134,11 @@ fun PulseLoopApp() {
                             selected = selected,
                             onClick = {
                                 if (selected) return@NavigationBarItem
-                                // Pop everything including the start destination, then navigate
-                                // to the tab. This ensures we always get the tab view regardless
-                                // of current screen (settings, pairing, record, etc.)
+                                // Pop everything above the start destination but keep it.
+                                // launchSingleTop jumps back to the existing tab instance.
                                 navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        inclusive = true
-                                        saveState = true
-                                    }
+                                    popUpTo(navController.graph.startDestinationId)
                                     launchSingleTop = true
-                                    restoreState = true
                                 }
                             },
                         )

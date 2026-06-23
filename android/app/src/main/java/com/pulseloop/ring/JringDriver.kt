@@ -82,7 +82,17 @@ class JringSyncEngine(private val writer: RingCommandWriter?) : RingSyncEngine {
         writer?.enqueue(encoder.makeHistoryMeasurementQueryCommand())
     }
 
-    override fun handle(event: RingDecodedEvent) {}  // Fire-and-forget
+    override fun handle(event: RingDecodedEvent) {
+        // Ring-side bind handshake (0x4B), mirroring the official app's
+        // onNotifyBindedInfo: the ring drives binding on connect so it stays paired
+        // to us and keeps streaming. Unbind (on forget) is handled in RingBLEClient.
+        if (event is RingDecodedEvent.BindNotify) {
+            when (event.action) {
+                0 -> if (event.state == 0) writer?.enqueue(encoder.makeBindAppStartCommand()) // INIT → APP_START
+                2 -> writer?.enqueue(encoder.makeBindSuccessCommand())                         // ACK → SUCCESS
+            }
+        }
+    }
 
     override fun startHeartRate() {
         writer?.enqueue(encoder.makeHeartRateStartCommand())

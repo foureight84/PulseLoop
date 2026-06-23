@@ -82,6 +82,9 @@ object RingEventBridge {
 
         is RingDecodedEvent.Spo2Progress, is RingDecodedEvent.Spo2Complete ->
             emptyList() // Phase 1 does not fan these out
+
+        is RingDecodedEvent.BindNotify ->
+            emptyList() // Bind/unbind handshake is driven in the sync engine / BLE client
     }
 
     private fun isPlausibleSleepStart(start: Instant, now: Instant): Boolean {

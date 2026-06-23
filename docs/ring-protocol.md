@@ -50,6 +50,7 @@ Error responses have the high bit set (opcode `| 0x80`).
 | `0x21` | write | `CMD_SET_LANG` | Set locale string (e.g., `"en-US"`) |
 | `0x1D` | write | `CMD_SET_HOUR_FORMAT` | Clock format: 0 = 12h, 1 = 24h |
 | `0x48` | write | `CMD_SET_APP_ID` | Application identifier string |
+| `0x4B` | write/notify | `setBindedInfo` | Ring-side bind/unbind. Bytes: `[0x4B, action, state, type]`. action: 0=INIT, 1=APP_START, 2=ACK, 3=ACK_CANCEL, 4=SUCCESS, 5=UNBOND, 6=UNBOND_ACK; state: 0=NO, 1=YES; type=1. Same opcode is sent as a notification by the ring (see Binding under Connection Behavior). |
 | `0x0E` | write | `CMD_SET_DEVICE_MODE` | Device operational mode |
 
 ### Device Info
@@ -188,8 +189,11 @@ the SDK passes the raw byte as `i7`, the app computes `sugar = i7 / 10` (mmol/L)
 shows mg/dL via `× 18.016`. So **mg/dL = (byte7 / 10) × 18.016** — e.g. `51 → 5.1 → 91.88`.
 
 The `com.google.blood_glucose` references in the APK are only for Google Health Connect export.
-Blood sugar here is an optically-derived estimate from the PPG sensor (not a true glucometer),
-gated by the `0x20` capability bit `FUNCTION_HAS_BLOODSUGAR`.
+Blood sugar here is **not** a true glucometer reading — the ring computes it from the user
+**profile** (sex/age/height/weight sent via `setUserInfo` 0x02; changing the profile changes the
+value), gated by the `0x20` capability bit `FUNCTION_HAS_BLOODSUGAR`. The official app offers an
+app-side **"Sugar Offset"** calibration (no BLE command — the offset is applied on the phone),
+which this app mirrors via a settings field.
 
 ## SpO₂ Data Source
 
@@ -306,7 +310,11 @@ Colmi R02 rings support REM via their V2 big-data format.
 ## Connection Behavior
 
 - **Idle timeout**: Ring disconnects after ~20s of inactivity. Use keepalive ping (`0x3A`) every 15s.
-- **OS-level bonding**: Call `createBond()` on first connect; `removeBond()` on "Forget Ring".
+- **Binding (ring-side, NOT OS bonding)**: The official app binds via the `0x4B` `setBindedInfo`
+  protocol, not `createBond()`. On connect the ring drives a handshake (`INIT(0)` → app `APP_START(1)`
+  → ring `ACK(2)` → app `SUCCESS(4)`); on "Forget" the app sends `UNBOND(5)` and waits for the ring's
+  `UNBOND_ACK(6)` before disconnecting, so the ring drops its binding and re-advertises for other apps.
+  See the `0x4B` command below. (`removeBond()` is still called as a best-effort fallback if an OS bond exists.)
 - **Standard HR service**: The ring also exposes standard BLE Heart Rate Service (`0x180D`/`0x2A37`).
 
 ## References

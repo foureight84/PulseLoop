@@ -51,8 +51,8 @@ Multi-byte integers are **little-endian** unless noted.
 
 | Cmd | Direction | Constant | Description |
 |-----|-----------|----------|-------------|
-| `0x23` | Write | `CMD_TOGGLE_BLOOD_PRESSURE` | **Trigger combined measurement** (NOT SpO₂!). byte[1] = 1 to start, 0 to stop. Measures: HR + systolic + diastolic + SpO₂ + fatigue |
-| `0x24` | Notify | `CMD_RECEIVED_SENSOR_DATA` | **Combined measurement result**: byte[1]=HR, byte[2]=systolic, byte[3]=diastolic, byte[4]=SpO₂%, byte[5]=fatigue/stress |
+| `0x23` | Write | `CMD_TOGGLE_BLOOD_PRESSURE` | **Trigger combined measurement** (NOT SpO₂!). byte[1] = 1 to start, 0 to stop. Measures: HR + systolic + diastolic + SpO₂ + fatigue + stress + blood sugar + HRV |
+| `0x24` | Notify | `CMD_RECEIVED_SENSOR_DATA` | **Combined measurement result**: byte[1]=HR, byte[2]=systolic, byte[3]=diastolic, byte[4]=SpO₂%, byte[5]=fatigue, byte[6]=stress, byte[7]=blood sugar (mmol/L ×10), byte[8]=HRV |
 | `0x27` | Notify | `CMD_NOTIFY_SENSOR_DATA` | Sensor measurement complete notification |
 | `0x28` | Notify | `CMD_NOTIFY_BLOOD_DATA` | Blood-related data notification |
 | `0x3E` | Write | `CMD_TOGGLE_SPO2` | **SpO₂-only measurement**: byte[1] = 1/0 |
@@ -138,7 +138,10 @@ The command `0x23` starts a combined health measurement that returns ALL of:
 - Systolic blood pressure (mmHg)
 - Diastolic blood pressure (mmHg)
 - Blood oxygen SpO₂ (%)
-- Fatigue/stress level
+- Fatigue level
+- Stress level
+- Blood sugar (mmol/L ×10; profile-derived estimate)
+- HRV
 
 The result arrives as `0x24` notification.
 

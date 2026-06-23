@@ -37,7 +37,7 @@ systolic and diastolic values.
 | Prior understanding | Corrected |
 |---|---|
 | `0x23` = SpO₂ measurement | `0x23` = **Combined BP + HR + SpO₂ + stress** measurement |
-| `0x24` = SpO₂ result | `0x24` = **Combined sensor result** (all 5 metrics) |
+| `0x24` = SpO₂ result | `0x24` = **Combined sensor result** (8 metrics: HR, systolic, diastolic, SpO₂, fatigue, stress, blood sugar, HRV) |
 | — | `0x3E` = **SpO₂-only** toggle |
 | — | `0x3F` = **SpO₂-only** result (byte[1] = %) |
 | `0x27` = HR complete | `0x27` = `CMD_NOTIFY_SENSOR_DATA` (generic) |
@@ -59,17 +59,20 @@ many more features than the basic ring.
 ### `0x24` — Combined Sensor Data ★
 
 ```
-24 HH SS DD OO FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-│  │  │  │  │  │
-│  │  │  │  │  └─ Fatigue / stress level
-│  │  │  │  └─── Blood oxygen SpO₂ (%)
-│  │  │  └────── Diastolic pressure (mmHg)
-│  │  └───────── Systolic pressure (mmHg)
-│  └──────────── Heart rate (BPM)
+24 HH SS DD OO FF TT GG VV 00 00 00 00 00 00 00 00 00 00 00 00
+│  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  └─ HRV
+│  │  │  │  │  │  │  └──── Blood sugar (mmol/L ×10; profile-derived estimate)
+│  │  │  │  │  │  └─────── Stress level
+│  │  │  │  │  └────────── Fatigue level
+│  │  │  │  └───────────── Blood oxygen SpO₂ (%)
+│  │  │  └──────────────── Diastolic pressure (mmHg)
+│  │  └─────────────────── Systolic pressure (mmHg)
+│  └────────────────────── Heart rate (BPM)
 └─ 0x24 command
 ```
 
-All five values arrive in one 20-byte notification. Values > 0 indicate valid readings.
+All eight values arrive in one 20-byte notification. Values > 0 indicate valid readings.
 
 ### `0x06` — Device Commands (ring → app)
 
@@ -183,20 +186,30 @@ The ring disconnects after ~20 seconds of inactivity. The official app uses `0x3
 pings to maintain the connection. Combined with `autoConnect=true`, the ring stays connected
 silently in the background.
 
-### OS-Level Bonding
-The official app triggers `createBond()` on connect, showing the Android system pairing dialog.
-Without this bond, Android caches the device and requires a phone restart to re-discover it
-after "Forget". Call `removeBond()` on disconnect to clear the bond.
+### Binding (ring-side `0x4B`, NOT OS bonding)
+The official app does **not** use `createBond()` for pairing. It binds via the custom `0x4B`
+`setBindedInfo(action, state, type)` protocol. On connect the ring drives a handshake
+(`INIT(0)` → app `APP_START(1)` → ring `ACK(2)` → app `SUCCESS(4)`). On "Forget" the app sends
+`UNBOND(5)` and waits for the ring's `UNBOND_ACK(6)` before disconnecting — this is what releases
+the ring so it re-advertises and other apps can discover it. Skipping the unbind leaves the ring
+bound to the previous app. (`removeBond()` is only a best-effort fallback for any stray OS bond.)
+Verified in the decompiled `BluetoothLeService.setBindedInfo`/`onNotifyBindedInfo` and the
+`BOND_ACTION_*` constants (`UNBOND=5`, `UNBOND_ACK=6`).
 
 ## Blood Sugar
 
-The official app displays blood sugar (e.g., 111.70 mg/dL). The APK decompilation found:
+The official app displays blood sugar (e.g., 111.70 mg/dL). The APK decompilation found (RESOLVED):
 
 1. **NO standard BLE Glucose Service** (`0x1808`) or Blood Pressure Service (`0x1810`) UUIDs
 2. `com.google.blood_glucose` references are for **Google Health Connect export**, not BLE
-3. The app has blood sugar adjustment/calibration UI (`BloodAdjust_*` strings)
-4. Most likely source: `ACTION_NOTIFY_BLOOD_DATA` broadcast (`0x28` command), or server-side
-   calculation via keeprapid.com API, or manual entry
+3. **Source: the `0x24` combined-sensor packet, byte[7]** (mmol/L ×10), delivered via
+   `onReceiveSensorData`. Display is `mg/dL = (byte7 / 10) × 18.016`. It is **not** a real
+   glucometer reading — the ring computes it from the user **profile** (sex/age/height/weight via
+   `setUserInfo` 0x02; changing the profile changes the value).
+4. **Calibration is app-side only.** The `BloodAdjust_*` strings are blood **pressure** calibration
+   (SBP/DBP), not sugar. Blood sugar has a separate **"Sugar Offset"** (`tvSugarOffset` in
+   `DetailBloodSugarActivity`) applied on the phone — there is no BLE glucose-calibration command
+   (`setSugarMode(boolean)` is just an on/off toggle).
 
 ## Still Unknown
 
@@ -204,7 +217,6 @@ The official app displays blood sugar (e.g., 111.70 mg/dL). The APK decompilatio
 |------|----------|------------|
 | `0x33F5` / `0x33F6` characteristics | Present in APK UID strings | Additional 56FF service characteristics (purpose unknown) |
 | `0x57FF` service | Present in APK UID strings | Secondary communication service |
-| Blood sugar source | Not standard BLE | Likely `0x28` notification or server-side |
 | `0x13` bytes 5+ | Always zero in captures | Sport report detail (unused by ring, used by smartwatches) |
 | `0x16` bytes 9+ | Pattern varies (`52 52...` or `01 00...`) | May encode temperature or other stored metrics |
 | Ring firmware behavior differences | Rings have fewer features than watches | `0x20` capability bitfield determines what works |

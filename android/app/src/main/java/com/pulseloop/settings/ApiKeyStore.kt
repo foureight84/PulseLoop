@@ -61,10 +61,6 @@ class ApiKeyStore(context: Context) {
         get() = prefs.getBoolean(KEY_ONBOARDING, false)
         set(value) { prefs.edit().putBoolean(KEY_ONBOARDING, value).apply() }
 
-    var demoDataSeeded: Boolean
-        get() = prefs.getBoolean(KEY_DEMO_SEEDED, false)
-        set(value) { prefs.edit().putBoolean(KEY_DEMO_SEEDED, value).apply() }
-
     /** Unit system: null = auto-detect from locale, "metric" or "imperial" = manual */
     var unitSystem: String?
         get() = if (prefs.contains(KEY_UNIT_SYSTEM)) prefs.getString(KEY_UNIT_SYSTEM, null) else null
@@ -81,6 +77,20 @@ class ApiKeyStore(context: Context) {
     var bpAdjustDiastolic: Int
         get() = prefs.getInt(KEY_BP_ADJ_DIA, 0)
         set(value) { prefs.edit().putInt(KEY_BP_ADJ_DIA, value).apply() }
+
+    /** Blood-sugar display calibration offset, in mg/dL, applied to the ring's
+     *  profile-derived glucose value. The ring has no glucose calibration command
+     *  (only `setSugarMode` on/off), so the official app applies a "Sugar Offset"
+     *  app-side — this mirrors that. 0 = not calibrated. */
+    var glucoseOffsetMgdl: Double
+        get() = prefs.getFloat(KEY_GLUCOSE_OFFSET, 0f).toDouble()
+        set(value) { prefs.edit().putFloat(KEY_GLUCOSE_OFFSET, value.toFloat()).apply() }
+
+    /** The last reference reading (mg/dL) the user entered to calibrate glucose.
+     *  Persisted only so the calibration field stays populated. 0 = none. */
+    var glucoseRefMgdl: Double
+        get() = prefs.getFloat(KEY_GLUCOSE_REF, 0f).toDouble()
+        set(value) { prefs.edit().putFloat(KEY_GLUCOSE_REF, value.toFloat()).apply() }
 
     /** Stable per-install id sent to the ring (0x48 setAppId) so it streams data to us.
      *  Generated once and reused; ≤18 ASCII chars to fit the command payload. */
@@ -115,10 +125,11 @@ class ApiKeyStore(context: Context) {
         private const val KEY_MORNING_HOUR = "morning_hour"
         private const val KEY_EVENING_HOUR = "evening_hour"
         private const val KEY_ONBOARDING = "onboarding_completed"
-        private const val KEY_DEMO_SEEDED = "demo_data_seeded"
         private const val KEY_UNIT_SYSTEM = "unit_system"
         private const val KEY_BP_ADJ_SYS = "bp_adjust_systolic"
         private const val KEY_BP_ADJ_DIA = "bp_adjust_diastolic"
+        private const val KEY_GLUCOSE_OFFSET = "glucose_offset_mgdl"
+        private const val KEY_GLUCOSE_REF = "glucose_ref_mgdl"
         private const val KEY_RING_APP_ID = "ring_app_id"
     }
 }

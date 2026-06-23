@@ -4,14 +4,17 @@
 
 | Tool | Version | Location |
 |---|---|---|
-| JDK (Java) | 17.0.9 (Temurin) | `/tmp/jdk-17.0.9+9` |
+| JDK (Java) | 21 (Temurin) | `~/.local/lib/jdk-21` (see `development-setup.md`) |
 | Android SDK | API 35 | `/home/khoa/android-sdk` |
 | Gradle | 8.9 (via wrapper) | `android/gradlew` |
+
+> The build runs on JDK 21 but targets Java 17 bytecode (`sourceCompatibility`/`jvmTarget = 17`
+> in `android/app/build.gradle.kts`).
 
 ## Environment
 
 ```bash
-export JAVA_HOME=/tmp/jdk-17.0.9+9
+export JAVA_HOME=~/.local/lib/jdk-21
 export ANDROID_HOME=/home/khoa/android-sdk
 export PATH=$JAVA_HOME/bin:$PATH
 ```
@@ -65,7 +68,7 @@ android/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── AndroidManifest.xml
-│   │   │   ├── java/com/pulseloop/   # Kotlin source (77 files)
+│   │   │   ├── java/com/pulseloop/   # Kotlin source
 │   │   │   └── res/                  # Resources (icons, colors, XML)
 │   │   └── test/                     # Unit tests (9 files)
 │   └── build/outputs/apk/           # Built APKs
@@ -82,7 +85,7 @@ android/
 ## Common Build Issues & Fixes
 
 ### "JAVA_HOME is not set"
-→ Set `export JAVA_HOME=/tmp/jdk-17.0.9+9`
+→ Set `export JAVA_HOME=~/.local/lib/jdk-21`
 
 ### "Android SDK not found"
 → Create/edit `local.properties`: `sdk.dir=/home/khoa/android-sdk`

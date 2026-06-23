@@ -80,6 +80,7 @@ sealed class RingDecodedEvent {
         is TimeSyncAck -> this._timestamp
         is CommandAck -> Instant.EPOCH
         is FirmwareVersion -> Instant.EPOCH
+        is BindNotify -> Instant.EPOCH
         is Unknown -> Instant.EPOCH
     }
 
@@ -166,6 +167,21 @@ sealed class RingDecodedEvent {
         override val kind = "history_measurement"
         override val confidence = DecodeConfidence.KNOWN
         override val debugJSON = "{}"
+    }
+
+    /**
+     * Ring-side bind/unbind notification (0x4B). Mirrors the official SDK's
+     * onNotifyBindedInfo(action, state). action: 0=INIT, 1=APP_START, 2=ACK,
+     * 3=ACK_CANCEL, 4=SUCCESS, 5=UNBOND, 6=UNBOND_ACK. The ring drives a small
+     * handshake on connect and acks an app-initiated unbind on forget.
+     */
+    data class BindNotify(
+        val action: Int,
+        val state: Int,
+    ) : RingDecodedEvent() {
+        override val kind = "bind_notify"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"action":$action,"state":$state}"""
     }
 
     data class StressSample(

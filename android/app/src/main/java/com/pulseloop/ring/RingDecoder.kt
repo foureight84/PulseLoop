@@ -36,6 +36,7 @@ object RingDecoder {
             0x27 -> listOf(RingDecodedEvent.HeartRateComplete(_timestamp = now))
             0x28 -> listOf(RingDecodedEvent.Spo2Complete(_timestamp = now))
             0x3F -> listOf(decodeSpo2Result(bytes, now))
+            0x4B -> listOf(decodeBindNotify(bytes))  // ring-side bind/unbind handshake
             0xF6 -> listOf(decodeFirmwareVersion(bytes))
             else -> listOf(RingDecodedEvent.Unknown(commandId = packet.commandId, raw = bytes))
         }
@@ -258,6 +259,20 @@ object RingDecoder {
         } else {
             RingDecodedEvent.Spo2Progress(percent = null, _timestamp = now)
         }
+    }
+
+    // ── 0x4B: Bind / Unbind handshake ─────────────────────────────────────
+
+    /**
+     * Ring-side bind notification. Mirrors the official SDK's onNotifyBindedInfo:
+     * byte[1] = action, byte[2] = state. The ring sends this on connect (to drive
+     * binding) and to acknowledge an app-initiated unbind on forget.
+     */
+    private fun decodeBindNotify(bytes: ByteArray): RingDecodedEvent {
+        if (bytes.size < 2) return unknown(0x4B, bytes)
+        val action = bytes[1].toInt() and 0xFF
+        val state = if (bytes.size > 2) bytes[2].toInt() and 0xFF else 0
+        return RingDecodedEvent.BindNotify(action = action, state = state)
     }
 
     // ── 0xF6: Firmware Version Number ─────────────────────────────────────

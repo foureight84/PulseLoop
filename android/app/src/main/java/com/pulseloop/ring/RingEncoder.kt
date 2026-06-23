@@ -95,6 +95,35 @@ object RingEncoder {
     }
 
     /**
+     * Ring-side bind / unbind (0x4B). Mirrors the official SDK's setBindedInfo
+     * (BluetoothLeService.a(action, state, type)):
+     *   byte[0] = 0x4B
+     *   byte[1] = action (0=INIT, 1=APP_START, 2=ACK, 3=ACK_CANCEL, 4=SUCCESS,
+     *             5=UNBOND, 6=UNBOND_ACK)
+     *   byte[2] = state  (0=BOND_STATE_NO, 1=BOND_STATE_YES)
+     *   byte[3] = type   (1, per the official app)
+     * Binding the ring to this app keeps it streaming to us; unbinding on "Forget"
+     * releases it so the ring re-advertises and other apps can find it again.
+     */
+    fun makeBindCommand(action: Int, state: Int = 0, type: Int = 1): ByteArray {
+        val cmd = ByteArray(20)
+        cmd[0] = 0x4B
+        cmd[1] = action.toByte()
+        cmd[2] = state.toByte()
+        cmd[3] = type.toByte()
+        return cmd
+    }
+
+    /** Respond to the ring's INIT bind notification — begins binding (official: setBindedInfo(1,0,1)). */
+    fun makeBindAppStartCommand(): ByteArray = makeBindCommand(action = 1)
+
+    /** Confirm binding after the ring's ACK (official: setBindedInfo(4,0,1)). */
+    fun makeBindSuccessCommand(): ByteArray = makeBindCommand(action = 4)
+
+    /** Tell the ring to unbind on "Forget" (official: setBindedInfo(5,0,1)). */
+    fun makeUnbindCommand(): ByteArray = makeBindCommand(action = 5)
+
+    /**
      * Blood-pressure calibration (0x33). Sends a reference systolic/diastolic
      * (e.g. from a cuff) so the ring offsets its readings to match. Mirrors the
      * official SDK's setBPAdjust (BluetoothLeService.c): each value is a

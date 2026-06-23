@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.pulseloop.data.DemoDataSeeder
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.notifications.CoachNotifications
+import com.pulseloop.ring.MeasurementKind
 import com.pulseloop.service.RingSyncWorker
 import com.pulseloop.settings.ApiKeyStore
 import com.pulseloop.settings.UnitSystem
@@ -369,6 +370,9 @@ fun SettingsScreen(
                 var weightInput by remember { mutableStateOf("") }
                 var bpSys by remember { mutableStateOf("") }
                 var bpDia by remember { mutableStateOf("") }
+                var glucoseRef by remember { mutableStateOf("") }
+                var glucoseOffset by remember { mutableStateOf(0.0) }
+                var glucoseMsg by remember { mutableStateOf<String?>(null) }
                 var savedMsg by remember { mutableStateOf<String?>(null) }
 
                 LaunchedEffect(Unit) {
@@ -387,6 +391,8 @@ fun SettingsScreen(
                     }
                     bpSys = keyStore.bpAdjustSystolic.takeIf { it > 0 }?.toString() ?: ""
                     bpDia = keyStore.bpAdjustDiastolic.takeIf { it > 0 }?.toString() ?: ""
+                    glucoseOffset = keyStore.glucoseOffsetMgdl
+                    glucoseRef = keyStore.glucoseRefMgdl.takeIf { it > 0 }?.let { "%.0f".format(it) } ?: ""
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -464,6 +470,67 @@ fun SettingsScreen(
                     )
                 }
 
+                Spacer(Modifier.height(16.dp))
+                Text("Blood sugar calibration", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Optional. The ring estimates glucose from your profile, not a real sensor. " +
+                        "Enter a recent lab/meter reading (mg/dL) to offset the displayed value to match.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = glucoseRef, onValueChange = { glucoseRef = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Reading (mg/dL)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true, modifier = Modifier.weight(1.4f),
+                    )
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val ref = glucoseRef.toDoubleOrNull()
+                                if (ref == null || ref <= 0) {
+                                    glucoseMsg = "Enter a valid mg/dL reading"
+                                    return@launch
+                                }
+                                val latestRaw = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name)
+                                if (latestRaw == null) {
+                                    glucoseMsg = "Take a blood sugar measurement first, then calibrate"
+                                    return@launch
+                                }
+                                // Stored readings are raw (offset is applied only at display),
+                                // so latestRaw is the ring's uncalibrated value.
+                                keyStore.glucoseOffsetMgdl = ref - latestRaw
+                                keyStore.glucoseRefMgdl = ref
+                                glucoseOffset = keyStore.glucoseOffsetMgdl
+                                glucoseMsg = "Calibrated ✓ (offset %+.0f mg/dL)".format(glucoseOffset)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Calibrate") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (glucoseOffset != 0.0) "Current offset: %+.0f mg/dL".format(glucoseOffset) else "No calibration set",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (glucoseOffset != 0.0) {
+                        TextButton(onClick = {
+                            keyStore.glucoseOffsetMgdl = 0.0
+                            keyStore.glucoseRefMgdl = 0.0
+                            glucoseOffset = 0.0
+                            glucoseRef = ""
+                            glucoseMsg = "Calibration cleared"
+                        }) { Text("Reset") }
+                    }
+                }
+                glucoseMsg?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = {
@@ -537,47 +604,38 @@ fun SettingsScreen(
                 if (device.value != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Forget removes the ring from the app and tells it to reset. Disconnect just drops the BLE link — the ring can reconnect.",
+                        "Forget unbinds the ring and removes it from the app so it can be paired " +
+                            "elsewhere. The app stays connected automatically the rest of the time.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    // Cancel background sync before unpair
-                                    RingSyncWorker.cancel(context)
-                                    // Send ring-side unpair commands, then disconnect & clear DB
-                                    if (coordinator != null && isConnected) {
-                                        coordinator.forgetRing {
-                                            scope.launch {
-                                                // Clearing the row emits null through currentFlow(),
-                                                // which updates the UI reactively.
-                                                db.deviceDao().clear()
-                                            }
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                // Cancel background sync before unpair
+                                RingSyncWorker.cancel(context)
+                                // Send ring-side unbind, then disconnect & clear DB
+                                if (coordinator != null && isConnected) {
+                                    coordinator.forgetRing {
+                                        scope.launch {
+                                            // Clearing the row emits null through currentFlow(),
+                                            // which updates the UI reactively.
+                                            db.deviceDao().clear()
                                         }
-                                    } else {
-                                        bleClient?.forget()
-                                        db.deviceDao().clear()
                                     }
+                                } else {
+                                    bleClient?.forget()
+                                    db.deviceDao().clear()
                                 }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        ) {
-                            Icon(Icons.Filled.DeleteForever, null, Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Forget Ring")
-                        }
-                        if (isConnected) {
-                            OutlinedButton(
-                                onClick = { scope.launch { bleClient?.disconnect() } },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("Disconnect")
                             }
-                        }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Icon(Icons.Filled.DeleteForever, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Forget Ring")
                     }
                 }
             }

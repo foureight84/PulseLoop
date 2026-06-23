@@ -22,7 +22,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:label="PulseLoop"
         android:supportsRtl="true"
         android:icon="@mipmap/ic_launcher"

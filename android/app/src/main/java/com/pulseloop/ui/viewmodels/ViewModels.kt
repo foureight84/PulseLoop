@@ -9,6 +9,7 @@ import com.pulseloop.service.SleepCoach
 import com.pulseloop.service.SleepInsights
 import com.pulseloop.service.SleepScore
 import com.pulseloop.service.SleepScoreResult
+import com.pulseloop.settings.ApiKeyStore
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -19,7 +20,7 @@ import java.time.temporal.ChronoUnit
  * Ported from MetricsService.buildTodaySummary in PulseServices.swift.
  * Uses reactive Flow queries so live ring data appears immediately.
  */
-class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
+class TodayViewModel(db: PulseLoopDatabase, private val apiKeyStore: ApiKeyStore? = null) : ViewModel() {
     private val todayStart = Instant.now().truncatedTo(ChronoUnit.DAYS).toEpochMilli()
 
     data class TodayState(
@@ -103,7 +104,9 @@ class TodayViewModel(db: PulseLoopDatabase) : ViewModel() {
         viewModelScope.launch {
             while (true) {
                 try {
+                    // Raw ring glucose + app-side calibration offset (see ApiKeyStore.glucoseOffsetMgdl).
                     val glucose = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name)
+                        ?.plus(apiKeyStore?.glucoseOffsetMgdl ?: 0.0)
                     _state.update { it.copy(bloodSugar = glucose, lastUpdated = System.currentTimeMillis()) }
                 } catch (_: Exception) {}
                 kotlinx.coroutines.delay(5000)
@@ -181,7 +184,7 @@ class ActivityViewModel(db: PulseLoopDatabase) : ViewModel() {
  * Ported from MetricsService.metricRange in PulseServices.swift.
  * Uses reactive polling so data appears as soon as the ring syncs.
  */
-class VitalsViewModel(private val db: PulseLoopDatabase) : ViewModel() {
+class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore: ApiKeyStore? = null) : ViewModel() {
     data class VitalsState(
         val hrSamples: List<Double> = emptyList(),
         val spo2Samples: List<Double> = emptyList(),
@@ -259,7 +262,8 @@ class VitalsViewModel(private val db: PulseLoopDatabase) : ViewModel() {
             latestTemp = temp.lastOrNull()?.value,
             bpSystolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)?.toInt(),
             bpDiastolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)?.toInt(),
-            bloodSugar = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name),
+            bloodSugar = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name)
+                ?.plus(apiKeyStore?.glucoseOffsetMgdl ?: 0.0),
             supportsHrv = caps.contains(WearableCapability.HRV),
             supportsStress = caps.contains(WearableCapability.STRESS),
             supportsFatigue = caps.contains(WearableCapability.FATIGUE),

@@ -310,7 +310,10 @@ fun VitalsScreen(
                             }
                         },
                     ) {
-                        Text(if (measuring) "Measuring… ${remaining}s" else "Measure")
+                        Text(
+                            if (measuring) "Measuring… ${remaining}s" else "Measure",
+                            color = androidx.compose.ui.graphics.Color.White,
+                        )
                     }
                 }
             }
@@ -393,14 +396,18 @@ fun VitalsScreen(
                     Column(Modifier.padding(16.dp)) {
                         Text("Stress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
-                        if (state.stressSamples.isNotEmpty()) {
-                            val latest = state.latestStress?.toInt() ?: 0
-                            // Thresholds match the official app (FragmentMain: <=30/<60/<80).
+                        val latest = state.latestStress?.toInt() ?: 0
+                        // The ring's valid stress range starts at 10 (official bands: 10-20 excellent …),
+                        // so treat anything below that as no reading rather than a misleading "Excellent".
+                        if (state.stressSamples.isNotEmpty() && latest >= 10) {
+                            // Bands match the official app's "Mental stress" interpretation
+                            // (<20 excellent, <40 good, <60 normal, <80 poor, else very poor).
                             val label = when {
-                                latest <= 30 -> "Relaxed"
+                                latest < 20 -> "Excellent"
+                                latest < 40 -> "Good"
                                 latest < 60 -> "Normal"
-                                latest < 80 -> "Elevated"
-                                else -> "High"
+                                latest < 80 -> "Poor"
+                                else -> "Very Poor"
                             }
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
@@ -423,9 +430,19 @@ fun VitalsScreen(
                     Column(Modifier.padding(16.dp)) {
                         Text("Fatigue", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
-                        if (state.fatigueSamples.isNotEmpty()) {
-                            val latest = state.latestFatigue?.toInt() ?: 0
-                            val label = if (latest < 50) "Light" else "Heavy"
+                        val latest = state.latestFatigue?.toInt() ?: 0
+                        // The ring's valid fatigue range starts at 10 (official bands: 10-20 excellent …),
+                        // so treat anything below that as no reading rather than a misleading "Excellent".
+                        if (state.fatigueSamples.isNotEmpty() && latest >= 10) {
+                            // Bands match the official app's "Body fatigue index" interpretation
+                            // (<20 excellent, <45 good, <60 normal, <80 poor, else very poor).
+                            val label = when {
+                                latest < 20 -> "Excellent"
+                                latest < 45 -> "Good"
+                                latest < 60 -> "Normal"
+                                latest < 80 -> "Poor"
+                                else -> "Very Poor"
+                            }
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text("  $latest / 100", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))

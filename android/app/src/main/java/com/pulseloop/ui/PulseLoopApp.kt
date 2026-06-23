@@ -69,8 +69,8 @@ fun PulseLoopApp() {
         }
 
         // ── ViewModels ───────────────────────────────────────────────────
-        val todayVM = remember { TodayViewModel(db) }
-        val vitalsVM = remember { VitalsViewModel(db) }
+        val todayVM = remember { TodayViewModel(db, apiKeyStore) }
+        val vitalsVM = remember { VitalsViewModel(db, apiKeyStore) }
         val sleepVM = remember { SleepViewModel(db) }
         val activityVM = remember { ActivityViewModel(db) }
         val coachVM = remember { CoachViewModel(db, coachOrchestrator) }
@@ -115,13 +115,9 @@ fun PulseLoopApp() {
             // Schedule periodic background sync (matches official app behavior)
             RingSyncWorker.schedule(context)
 
-            // Seed demo data ONLY on first launch with no ring data
-            val device = db.deviceDao().current()
-            val hasAnyActivity = db.activityDailyDao().recent(1).isNotEmpty()
-            if (device == null && !hasAnyActivity && !apiKeyStore.demoDataSeeded) {
-                com.pulseloop.data.DemoDataSeeder.seed(db)
-                apiKeyStore.demoDataSeeded = true
-            }
+            // NOTE: demo data is never auto-seeded. A clean install starts empty so the UI
+            // reflects only real ring data. Demo data is seeded exclusively via the
+            // confirmation-gated "Reseed Demo Data" button in Settings.
         }
 
         // ── Auto-reconnect on return to foreground ───────────────────────

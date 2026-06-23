@@ -43,7 +43,7 @@ Value:  0x0B  level  charging
 
 When level=100 and charging=1 → battery full (BATTERY_CHARGING_FULL)
 
-**Current RingDecoder gap:** Missing byte[2] charging state.
+**Status:** ✅ Implemented incl. byte[2] charging state (RingDecoder.kt:58-65).
 
 ---
 
@@ -132,7 +132,7 @@ for (int i = 5; i < 20; i++) {
 }
 ```
 
-**Current RingDecoder gap:** Not decoded — falls through to `Unknown`.
+**Status:** ✅ Implemented — `RingDecoder.decodeActivityHistory` decodes 15× 1-min step buckets (RingDecoder.kt:92-103).
 
 ---
 
@@ -168,7 +168,7 @@ Value:  0x14  u32le timestamp        HR   sleep_flag
 
 > `timestamp == 0` means measurement error — discard the reading.
 
-**Current RingDecoder gap:** Missing timestamp (uses `Instant.now()` instead), missing sleep status.
+**Status:** ✅ Implemented — decodes timestamp (bytes[1-4]) and sleep status (byte[6]); `timestamp == 0` discarded as a measurement error (RingDecoder.kt:120-134).
 
 ---
 
@@ -217,17 +217,18 @@ int round2 = Math.round((b[14]+b[15]+b[16]+b[17]+b[18]+b[19]) / 6.0f);
 
 **End packet** (byte[1] = `0xFF`): Sync finished.
 
-**Current RingDecoder gap:** Only reads the first non-zero byte after offset 8 as a single HR value. Doesn't handle the multi-packet protocol, header/index packets, or the 6-sample averaging.
+**Status:** ✅ Implemented. `RingDecoder.decodeHeartRateHistory` handles the full multi-packet protocol — `0xF0` header, `0xAA` index, `0xA0` data blocks with 6-sample averaging, and `0xFF` end marker (RingDecoder.kt:144-197).
 
 ---
 
 ## 0x24 — Combined Sensor Data (CMD_RECEIVED_SENSOR_DATA) ★
 
-Response to `CMD_TOGGLE_BLOOD_PRESSURE` (0x23). Contains ALL 5 metrics in one packet.
+Response to `CMD_TOGGLE_BLOOD_PRESSURE` (0x23). Contains 8 metrics in one packet
+(official `onReceiveSensorData(i..i8)`).
 
 ```
-Offset:  0    1    2         3          4       5
-Value:  0x24  HR   systolic  diastolic  SpO2%   fatigue
+Offset:  0    1    2         3          4       5        6       7            8
+Value:  0x24 HR   systolic  diastolic  SpO2%   fatigue  stress  bloodSugar   HRV
 ```
 
 | Bytes | Type | Metric | Range |
@@ -237,15 +238,19 @@ Value:  0x24  HR   systolic  diastolic  SpO2%   fatigue
 | 2 | u8 | **Systolic BP** (mmHg) | — |
 | 3 | u8 | **Diastolic BP** (mmHg) | — |
 | 4 | u8 | **Blood oxygen** SpO₂ (%) | 80–100 |
-| 5 | u8 | **Fatigue / Stress** | 0–? |
+| 5 | u8 | **Fatigue** | 0–100 |
+| 6 | u8 | **Stress** | 0–100 |
+| 7 | u8 | **Blood sugar** (mmol/L ×10) | profile-derived estimate |
+| 8 | u8 | **HRV** | — |
 
 Values > 0 indicate valid readings. Only store if value > 0.
 
-> **This is the blood pressure source.** The official app hides BP from the UI but the
-> ring does send it. Gadgetbridge successfully extracts and displays both systolic
-> and diastolic values.
+> **This is the blood pressure AND blood sugar source.** The official app hides BP from
+> the UI but the ring sends it. Blood sugar (byte[7]) is a profile-derived estimate
+> computed on the ring, not a real glucometer reading — `mg/dL = (byte7 / 10) × 18.016`.
 
-**Current RingDecoder gap:** Only reads byte[4] as SpO₂. Missing HR, systolic, diastolic, and stress at bytes[1], [2], [3], [5].
+**Status:** ✅ Implemented. `RingDecoder.decodeCombinedSensor` decodes all 8 fields
+(RingDecoder.kt:210-249). Fatigue (byte[5]) and stress (byte[6]) are distinct metrics.
 
 ---
 
@@ -265,24 +270,27 @@ Value:  0x3F  SpO2%
 
 Note from Gadgetbridge: "not used on the hardware/app I know. There they use the 0x24 combined measurement."
 
-**Current RingDecoder gap:** Not decoded at all.
+**Status:** ✅ Implemented. `RingDecoder.decodeSpo2Result` (RingDecoder.kt:254-262).
 
 ---
 
-## Summary: RingDecoder Gaps vs. Official App
+## Summary: RingDecoder vs. Official App
+
+As of the current build, all command decoders below are implemented (see `RingDecoder.kt`).
 
 | Stat | Official App Decoding | Current RingDecoder |
 |------|----------------------|---------------------|
-| **0x03 Activity** | Steps(u32), Distance(m)(u32), Kcal(u32) | ✅ Mostly correct but casts to Double unnecessarily |
-| **0x0B Battery** | Level(u8) + Charging(u8) | ❌ Missing charging state at byte[2] |
-| **0x0C Device Info** | MAC(6B) + FW(u16le×2) + CID/DID/CRC | ✅ Partially — reads MAC + FW only |
-| **0x10 Activity History** | 15× 1-min samples, multi-packet | ❌ Not decoded |
+| **0x03 Activity** | Steps(u32), Distance(m)(u32), Kcal(u32) | ✅ Decoded |
+| **0x0B Battery** | Level(u8) + Charging(u8) | ✅ Decoded incl. charging state at byte[2] |
+| **0x0C Device Info** | MAC(6B) + FW(u16le×2) + CID/DID/CRC | ✅ Reads MAC + FW |
+| **0x10 Activity History** | 15× 1-min samples, multi-packet | ✅ Decoded (15× 1-min step buckets) |
 | **0x11 Sleep Timeline** | 15× 1-min stages, 0x00/0x28/0x63 | ✅ Decoded (bytes[5-19]) |
-| **0x14 Live HR** | Timestamp(u32le) + HR(u8) + SleepFlag(u8) | ❌ Missing timestamp + sleep flag; uses Instant.now() |
-| **0x16 HR History** | Multi-packet: 0xF0 header, 0xAA index, 0xA0 data (6-sample avg), 0xFF end | ❌ Only reads a single byte |
-| **0x24 Combined** | HR + Systolic + Diastolic + SpO₂ + Stress (5× u8) | ❌ Only reads SpO₂ at byte[4] |
-| **0x3F SpO₂ Result** | SpO₂% at byte[1] | ❌ Not decoded |
-| **0xF6 Firmware** | Version(u16le at bytes[4-5]) + MAC variant | ✅ Partially — reads version only |
+| **0x14 Live HR** | Timestamp(u32le) + HR(u8) + SleepFlag(u8) | ✅ Decoded incl. timestamp + sleep flag |
+| **0x16 HR History** | Multi-packet: 0xF0 header, 0xAA index, 0xA0 data (6-sample avg), 0xFF end | ✅ Full multi-packet protocol decoded |
+| **0x24 Combined** | HR + Systolic + Diastolic + SpO₂ + Fatigue + Stress + Sugar + HRV (8× u8) | ✅ All 8 fields decoded |
+| **0x3F SpO₂ Result** | SpO₂% at byte[1] | ✅ Decoded |
+| **0x4B Bind/Unbind** | Ring-side bind handshake (action/state/type) | ✅ Decoded + handshake driven |
+| **0xF6 Firmware** | Version(u16le at bytes[4-5]) + MAC variant | ✅ Reads version |
 
 ## Sleep Detection — End-to-End Flow
 

@@ -88,6 +88,10 @@ class RingBLEClient(private val context: Context) {
     private var activeDriver: WearableDriver? = null
     private var activeSyncEngine: RingSyncEngine? = null
 
+    // Set while a "Forget" is waiting for the ring's UNBOND_ACK (0x4B) before teardown.
+    private var forgetPending = false
+    private var forgetJob: Job? = null
+
     // MARK: Write serialization
 
     private data class QueuedWrite(val data: ByteArray, val useCommandChannel: Boolean)
@@ -271,10 +275,38 @@ class RingBLEClient(private val context: Context) {
     }
 
     /**
-     * Full teardown — remove bond, close GATT, forget the ring.
-     * Only call this on explicit "Forget Ring" action.
+     * Explicit "Forget Ring" action. Mirrors the official app: send the ring-side
+     * UNBOND (0x4B 05) and wait for the ring's UNBOND_ACK before tearing down, so
+     * the ring drops its binding to us and re-advertises for other apps. Falls back
+     * to an unconditional teardown if the ring is offline or never acks.
      */
     fun forget() {
+        // Clear the known-ring id up front so the watchdog/auto-reconnect can't grab
+        // the ring back during or after the unbind window.
+        prefs.edit().remove(LAST_PERIPHERAL_KEY).remove(LAST_DEVICE_TYPE_KEY).apply()
+
+        val gatt = bluetoothGatt
+        if (gatt != null && writeChar != null &&
+            _state.value.connectionState == RingConnectionState.CONNECTED) {
+            forgetPending = true
+            enqueueWrite(RingEncoder.makeUnbindCommand())  // 0x4B 05 00 01
+            forgetJob?.cancel()
+            forgetJob = scope.launch {
+                delay(UNBIND_ACK_TIMEOUT_MS)
+                if (forgetPending) {
+                    Log.w("RingBLEClient", "Unbind ACK not received in ${UNBIND_ACK_TIMEOUT_MS}ms — forcing teardown")
+                    finalizeForget()
+                }
+            }
+        } else {
+            finalizeForget()
+        }
+    }
+
+    /** Tear down the link: clear the GATT cache, remove any OS bond, close the GATT. */
+    private fun finalizeForget() {
+        forgetPending = false
+        forgetJob?.cancel(); forgetJob = null
         stopKeepalive()
         scanner?.stopScan(scanCallback)
         bluetoothGatt?.let { gatt ->
@@ -647,6 +679,16 @@ class RingBLEClient(private val context: Context) {
             if (!driver.notifyUUIDs.any { it == characteristic.uuid.toString() }) return
 
             for (decoded in driver.ingest(value, characteristic.uuid.toString())) {
+                // A forget is in flight: don't persist any more data or re-publish a
+                // "connected" device state (which would re-create the row we're clearing).
+                // Just watch for the ring's unbind ack (6 = UNBOND_ACK, 3 = ACK_CANCEL).
+                if (forgetPending) {
+                    if (decoded is RingDecodedEvent.BindNotify &&
+                        (decoded.action == 6 || decoded.action == 3)) {
+                        finalizeForget()
+                    }
+                    continue
+                }
                 PulseEventBus.publishBlocking(
                     PulseEvent.RawPacket(PacketDirection.INCOMING, value, decoded)
                 )
@@ -733,6 +775,8 @@ class RingBLEClient(private val context: Context) {
         private const val CONNECT_TIMEOUT_MS = 30_000L
         /** Max wait for a write ACK before unblocking the queue (prevents a stuck writeInFlight). */
         private const val WRITE_TIMEOUT_MS = 4_000L
+        /** Max wait for the ring's UNBOND_ACK after a forget before forcing teardown. */
+        private const val UNBIND_ACK_TIMEOUT_MS = 1_500L
         private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private val DIS_SERVICE_UUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb")
         private val FW_REV_UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")

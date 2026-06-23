@@ -2,6 +2,7 @@ package com.pulseloop.service
 
 import com.pulseloop.data.entity.SleepSessionEntity
 import com.pulseloop.data.entity.SleepStageBlockEntity
+import com.pulseloop.ring.SleepStage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -67,11 +68,16 @@ object SleepScore {
         blocks: List<SleepStageBlockEntity>,
     ): SleepScoreResult {
         val total = if (session.totalMinutes > 0) session.totalMinutes.toDouble() else 0.0
-        val deep = blocks.filter { it.stageRaw == "deep" }.sumOf { it.durationMinutes }.toDouble()
-        val light = blocks.filter { it.stageRaw == "light" }.sumOf { it.durationMinutes }.toDouble()
-        val awake = blocks.filter { it.stageRaw == "awake" }.sumOf { it.durationMinutes }.toDouble()
+        // stageRaw is persisted as the SleepStage enum name (uppercase) — match it exactly.
+        // Some rings report REM in big-data sleep; the score model has no REM band, so fold
+        // REM into deep (both are restorative sleep the deep band rewards).
+        fun minutesFor(vararg stages: SleepStage) =
+            blocks.filter { b -> stages.any { it.name == b.stageRaw } }.sumOf { it.durationMinutes }.toDouble()
+        val deep = minutesFor(SleepStage.DEEP, SleepStage.REM)
+        val light = minutesFor(SleepStage.LIGHT)
+        val awake = minutesFor(SleepStage.AWAKE)
         val coveredStageMin = blocks.sumOf { it.durationMinutes.toDouble() }
-        val hasAwakeSignal = blocks.any { it.stageRaw == "awake" } ||
+        val hasAwakeSignal = blocks.any { it.stageRaw == SleepStage.AWAKE.name } ||
             awake > 0 || (total > 0 && coveredStageMin >= total * 0.95)
 
         val totalHours = total / 60

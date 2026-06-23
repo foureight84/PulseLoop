@@ -52,6 +52,50 @@ fun SimpleLineChart(
 }
 
 /**
+ * Dual-series line chart — draws two polylines on a shared Y-scale so paired
+ * series (e.g. systolic over diastolic blood pressure) stay vertically aligned.
+ */
+@Composable
+fun SimpleDualLineChart(
+    seriesA: List<Double>,
+    seriesB: List<Double>,
+    colorA: Color,
+    colorB: Color,
+    modifier: Modifier = Modifier,
+    lineWidth: Float = 2f,
+    showDots: Boolean = true,
+) {
+    if (seriesA.isEmpty() && seriesB.isEmpty()) return
+    // Shared scale across both series so the two lines are comparable.
+    val all = seriesA + seriesB
+    val min = all.min()
+    val max = all.max()
+    val range = if (max == min) 1.0 else max - min
+
+    Canvas(modifier = modifier.fillMaxWidth().height(100.dp)) {
+        val w = size.width
+        val h = size.height
+        val pad = 8f
+
+        fun drawSeries(points: List<Double>, color: Color) {
+            if (points.isEmpty()) return
+            val stepX = (w - pad * 2) / maxOf(1, points.size - 1)
+            val path = Path()
+            points.forEachIndexed { i, value ->
+                val x = pad + i * stepX
+                val y = pad + (h - pad * 2) * (1f - ((value - min) / range).toFloat())
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                if (showDots) drawCircle(color, 3f, Offset(x, y))
+            }
+            drawPath(path, color, style = Stroke(width = lineWidth, cap = StrokeCap.Round))
+        }
+
+        drawSeries(seriesA, colorA)
+        drawSeries(seriesB, colorB)
+    }
+}
+
+/**
  * Metric card with embedded mini sparkline — ported from MiniSparkline in DesignSystem.
  */
 @Composable

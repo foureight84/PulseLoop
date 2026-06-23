@@ -1,8 +1,10 @@
 package com.pulseloop.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,6 +27,7 @@ import com.pulseloop.service.SleepInsights
 import com.pulseloop.service.SleepScore
 import com.pulseloop.service.SleepScoreResult
 import com.pulseloop.ui.components.MetricTile
+import com.pulseloop.ui.components.SimpleDualLineChart
 import com.pulseloop.ui.components.SimpleLineChart
 import com.pulseloop.ui.viewmodels.*
 import com.pulseloop.settings.ApiKeyStore
@@ -513,10 +516,35 @@ fun VitalsScreen(
                     Column(Modifier.padding(16.dp)) {
                         Text("Blood Pressure", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
+                        val bpSysColor = androidx.compose.ui.graphics.Color(0xFF5E35B1)
+                        val bpDiaColor = androidx.compose.ui.graphics.Color(0xFFB39DDB)
                         if (state.bpSystolic != null || state.bpDiastolic != null) {
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text("${state.bpSystolic ?: "--"} / ${state.bpDiastolic ?: "--"}", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(" mmHg", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            if (state.bpSysSamples.isNotEmpty()) {
+                                val sysMin = state.bpSysSamples.min().toInt()
+                                val sysMax = state.bpSysSamples.max().toInt()
+                                val sysAvg = state.bpSysSamples.average().toInt()
+                                val diaAvg = state.bpDiaSamples.average().takeIf { state.bpDiaSamples.isNotEmpty() }?.toInt()
+                                Text(
+                                    "Sys $sysMin – $sysMax · Avg $sysAvg${diaAvg?.let { "/$it" } ?: ""} mmHg",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                SimpleDualLineChart(
+                                    seriesA = state.bpSysSamples,
+                                    seriesB = state.bpDiaSamples,
+                                    colorA = bpSysColor,
+                                    colorB = bpDiaColor,
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    LegendDot("Systolic", bpSysColor)
+                                    LegendDot("Diastolic", bpDiaColor)
+                                }
                             }
                         } else {
                             Text("No blood pressure data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -540,6 +568,18 @@ fun VitalsScreen(
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(String.format("%.1f", state.bloodSugar), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(" mg/dL", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            if (state.glucoseSamples.isNotEmpty()) {
+                                val gMin = state.glucoseSamples.min()
+                                val gMax = state.glucoseSamples.max()
+                                val gAvg = state.glucoseSamples.average()
+                                Text(
+                                    String.format("Range: %.1f – %.1f · Avg %.1f mg/dL", gMin, gMax, gAvg),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                SimpleLineChart(points = state.glucoseSamples, color = androidx.compose.ui.graphics.Color(0xFF00897B))
                             }
                         } else {
                             Text("No blood sugar data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -669,6 +709,16 @@ fun SleepScreen(
                 }
             }
         }
+    }
+}
+
+/** Small color swatch + label, used as an inline chart legend (e.g. Systolic / Diastolic). */
+@Composable
+private fun LegendDot(label: String, color: androidx.compose.ui.graphics.Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).background(color, CircleShape))
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

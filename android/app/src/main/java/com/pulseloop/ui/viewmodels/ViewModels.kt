@@ -201,6 +201,9 @@ class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore
         val bpSystolic: Int? = null,
         val bpDiastolic: Int? = null,
         val bloodSugar: Double? = null,
+        val bpSysSamples: List<Double> = emptyList(),
+        val bpDiaSamples: List<Double> = emptyList(),
+        val glucoseSamples: List<Double> = emptyList(),
         val supportsHrv: Boolean = false,
         val supportsStress: Boolean = false,
         val supportsFatigue: Boolean = false,
@@ -246,6 +249,10 @@ class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore
         val stress = if (caps.contains(WearableCapability.STRESS)) db.measurementDao().range(MeasurementKind.STRESS.name, twentyFourHoursAgo, now) else emptyList()
         val fatigue = if (caps.contains(WearableCapability.FATIGUE)) db.measurementDao().range(MeasurementKind.FATIGUE.name, twentyFourHoursAgo, now) else emptyList()
         val temp = if (caps.contains(WearableCapability.TEMPERATURE)) db.measurementDao().range(MeasurementKind.TEMPERATURE.name, twentyFourHoursAgo, now) else emptyList()
+        val bpSys = if (caps.contains(WearableCapability.BLOOD_PRESSURE)) db.measurementDao().range(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name, twentyFourHoursAgo, now) else emptyList()
+        val bpDia = if (caps.contains(WearableCapability.BLOOD_PRESSURE)) db.measurementDao().range(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name, twentyFourHoursAgo, now) else emptyList()
+        val glucoseOffset = apiKeyStore?.glucoseOffsetMgdl ?: 0.0
+        val gluc = if (caps.contains(WearableCapability.BLOOD_SUGAR)) db.measurementDao().range(MeasurementKind.BLOOD_SUGAR.name, twentyFourHoursAgo, now) else emptyList()
 
         _state.value = VitalsState(
             hrSamples = hr.map { it.value },
@@ -263,7 +270,10 @@ class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore
             bpSystolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)?.toInt(),
             bpDiastolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)?.toInt(),
             bloodSugar = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name)
-                ?.plus(apiKeyStore?.glucoseOffsetMgdl ?: 0.0),
+                ?.plus(glucoseOffset),
+            bpSysSamples = bpSys.map { it.value },
+            bpDiaSamples = bpDia.map { it.value },
+            glucoseSamples = gluc.map { it.value + glucoseOffset },
             supportsHrv = caps.contains(WearableCapability.HRV),
             supportsStress = caps.contains(WearableCapability.STRESS),
             supportsFatigue = caps.contains(WearableCapability.FATIGUE),

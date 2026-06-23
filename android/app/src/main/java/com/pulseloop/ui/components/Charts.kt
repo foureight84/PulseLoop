@@ -30,8 +30,46 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
+ * Builds hard-edged vertical-gradient color stops from a metric's threshold zones,
+ * mapped into the chart's visible `[dataMin, dataMax]` value range.
+ *
+ * Offsets are for `Brush.verticalGradient`: 0f = top of the plot (max value),
+ * 1f = bottom (min value). Hard edges come from duplicating the offset at each
+ * in-range zone boundary (lower-zone color then upper-zone color at the same fraction).
+ */
+fun zoneGradientStops(dataMin: Double, dataMax: Double, th: MetricThresholds): Array<Pair<Float, Color>> {
+    val range = dataMax - dataMin
+    if (range <= 1e-6) {
+        val c = th.zoneFor(dataMin)?.color ?: Color.Gray
+        return arrayOf(0f to c, 1f to c)
+    }
+    // Boundaries strictly inside the visible range, high → low (top → bottom).
+    val boundaries = th.zones
+        .flatMap { listOf(it.start, it.end) }
+        .distinct()
+        .filter { it > dataMin + 1e-6 && it < dataMax - 1e-6 }
+        .sortedDescending()
+
+    fun colorAt(v: Double): Color = th.zoneFor(v)?.color ?: Color.Gray
+    val eps = range * 1e-4
+
+    val stops = mutableListOf<Pair<Float, Color>>()
+    stops.add(0f to colorAt(dataMax - eps))            // top = max value
+    for (b in boundaries) {
+        val f = ((dataMax - b) / range).toFloat().coerceIn(0f, 1f)
+        stops.add(f to colorAt(b + eps))               // just above boundary (upper zone)
+        stops.add(f to colorAt(b - eps))               // just below boundary (lower zone) → hard edge
+    }
+    stops.add(1f to colorAt(dataMin + eps))            // bottom = min value
+    return stops.toTypedArray()
+}
+
+/**
  * Simple line chart composable — draws a polyline from data points.
  * No external charting library needed.
+ *
+ * When [thresholds] is provided, the line + dots are colored by each value's zone
+ * (matching the metric's threshold legend) instead of the flat [color].
  */
 @Composable
 fun SimpleLineChart(
@@ -40,6 +78,7 @@ fun SimpleLineChart(
     color: Color = MaterialTheme.colorScheme.primary,
     lineWidth: Float = 2f,
     showDots: Boolean = true,
+    thresholds: MetricThresholds? = null,
 ) {
     if (points.isEmpty()) return
     val min = points.min()
@@ -51,6 +90,16 @@ fun SimpleLineChart(
         val h = size.height
         val pad = 8f
         val stepX = (w - pad * 2) / maxOf(1, points.size - 1)
+        val top = pad
+        val bottom = h - pad
+
+        val lineBrush = thresholds?.let {
+            Brush.verticalGradient(
+                colorStops = zoneGradientStops(min, max, it),
+                startY = top,
+                endY = bottom,
+            )
+        }
 
         val path = Path()
         points.forEachIndexed { i, value ->
@@ -59,10 +108,15 @@ fun SimpleLineChart(
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
 
             if (showDots) {
-                drawCircle(color, 3f, Offset(x, y))
+                val dotColor = thresholds?.zoneFor(value)?.color ?: color
+                drawCircle(dotColor, 3f, Offset(x, y))
             }
         }
-        drawPath(path, color, style = Stroke(width = lineWidth, cap = StrokeCap.Round))
+        if (lineBrush != null) {
+            drawPath(path, brush = lineBrush, style = Stroke(width = lineWidth, cap = StrokeCap.Round))
+        } else {
+            drawPath(path, color, style = Stroke(width = lineWidth, cap = StrokeCap.Round))
+        }
     }
 }
 
@@ -272,6 +326,7 @@ fun TrendChart(
     colorSecondary: Color = Color(0xFFB39DDB),
     legendPrimary: String? = null,
     legendSecondary: String? = null,
+    thresholds: MetricThresholds? = null,
 ) {
     if (points.isEmpty()) return
 
@@ -279,6 +334,8 @@ fun TrendChart(
     val min = all.min()
     val max = all.max()
     val range = if (max == min) 1.0 else max - min
+    // Zone-color the primary line only for single-series metrics (not BP's dual lines).
+    val zoneColoring = thresholds != null && secondary.isEmpty()
 
     Column(modifier = modifier) {
         // Legend row (for dual-series)
@@ -314,11 +371,13 @@ fun TrendChart(
             // Value axis annotations (min/max)
             // (simplified — just show the extremes)
 
-            fun drawSeries(series: List<Double>, seriesColor: Color, seriesAlpha: Float = 1f) {
+            fun drawSeries(series: List<Double>, seriesColor: Color, zoneColored: Boolean = false) {
                 if (series.isEmpty()) return
                 val stepX = (w - pad * 2) / maxOf(1, series.size - 1)
+                val lineTop = topPad
+                val lineBottom = h - bottomPad
 
-                // Gradient fill under the line
+                // Gradient fill under the line (kept single-color for readability)
                 val fillPath = Path()
                 series.forEachIndexed { i, value ->
                     val x = pad + i * stepX
@@ -337,19 +396,32 @@ fun TrendChart(
                     ),
                 )
 
+                val lineBrush = if (zoneColored && thresholds != null) {
+                    Brush.verticalGradient(
+                        colorStops = zoneGradientStops(min, max, thresholds),
+                        startY = lineTop,
+                        endY = lineBottom,
+                    )
+                } else null
+
                 // The line itself
                 val linePath = Path()
                 series.forEachIndexed { i, value ->
                     val x = pad + i * stepX
                     val y = topPad + (h - topPad - bottomPad) * (1f - ((value - min) / range).toFloat())
                     if (i == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
-                    drawCircle(seriesColor, 3f, Offset(x, y))
+                    val dotColor = if (zoneColored) thresholds?.zoneFor(value)?.color ?: seriesColor else seriesColor
+                    drawCircle(dotColor, 3f, Offset(x, y))
                 }
-                drawPath(linePath, seriesColor, style = Stroke(width = 2f, cap = StrokeCap.Round))
+                if (lineBrush != null) {
+                    drawPath(linePath, brush = lineBrush, style = Stroke(width = 2f, cap = StrokeCap.Round))
+                } else {
+                    drawPath(linePath, seriesColor, style = Stroke(width = 2f, cap = StrokeCap.Round))
+                }
             }
 
-            drawSeries(secondary, colorSecondary, 0.7f)
-            drawSeries(points, color)
+            drawSeries(secondary, colorSecondary)
+            drawSeries(points, color, zoneColored = zoneColoring)
         }
 
         // X-axis labels

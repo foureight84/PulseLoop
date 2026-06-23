@@ -367,7 +367,7 @@ fun VitalsScreen(
                             ThresholdBar(value = state.latestHr?.toDouble(), thresholds = th)
                         }
                         Spacer(Modifier.height(12.dp))
-                        SimpleLineChart(points = state.hrSamples, color = androidx.compose.ui.graphics.Color(0xFFE53935))
+                        SimpleLineChart(points = state.hrSamples, color = androidx.compose.ui.graphics.Color(0xFFE53935), thresholds = MetricThresholdTable.forKind(MeasurementKind.HEART_RATE))
                     } else {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text("--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -399,7 +399,7 @@ fun VitalsScreen(
                             ThresholdBar(value = state.latestSpo2?.toDouble(), thresholds = th)
                         }
                         Spacer(Modifier.height(12.dp))
-                        SimpleLineChart(points = state.spo2Samples, color = androidx.compose.ui.graphics.Color(0xFF1E88E5))
+                        SimpleLineChart(points = state.spo2Samples, color = androidx.compose.ui.graphics.Color(0xFF1E88E5), thresholds = MetricThresholdTable.forKind(MeasurementKind.SPO2))
                     } else {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text("--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -440,7 +440,7 @@ fun VitalsScreen(
                                 ThresholdBar(value = state.latestStress, thresholds = th)
                             }
                             Spacer(Modifier.height(12.dp))
-                            SimpleLineChart(points = state.stressSamples, color = androidx.compose.ui.graphics.Color(0xFF8E24AA))
+                            SimpleLineChart(points = state.stressSamples, color = androidx.compose.ui.graphics.Color(0xFF8E24AA), thresholds = MetricThresholdTable.forKind(MeasurementKind.STRESS))
                         } else {
                             Text("No stress data yet — take a measurement.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -478,7 +478,7 @@ fun VitalsScreen(
                                 ThresholdBar(value = state.latestFatigue, thresholds = th)
                             }
                             Spacer(Modifier.height(12.dp))
-                            SimpleLineChart(points = state.fatigueSamples, color = androidx.compose.ui.graphics.Color(0xFFFB8C00))
+                            SimpleLineChart(points = state.fatigueSamples, color = androidx.compose.ui.graphics.Color(0xFFFB8C00), thresholds = MetricThresholdTable.forKind(MeasurementKind.FATIGUE))
                         } else {
                             Text("No fatigue data yet — take a measurement.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -505,7 +505,7 @@ fun VitalsScreen(
                                 ThresholdBar(value = state.latestHrv, thresholds = th)
                             }
                             Spacer(Modifier.height(12.dp))
-                            SimpleLineChart(points = state.hrvSamples, color = androidx.compose.ui.graphics.Color(0xFF43A047))
+                            SimpleLineChart(points = state.hrvSamples, color = androidx.compose.ui.graphics.Color(0xFF43A047), thresholds = MetricThresholdTable.forKind(MeasurementKind.HRV))
                         } else {
                             Text("No HRV data yet — HRV builds up over a few hours of wear.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -531,7 +531,7 @@ fun VitalsScreen(
                                 Text(" $displayUnit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
                             Spacer(Modifier.height(12.dp))
-                            SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043))
+                            SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043), thresholds = MetricThresholdTable.forKind(MeasurementKind.TEMPERATURE))
                         } else {
                             Text("No temperature data yet — temperature trends appear after overnight wear.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -623,7 +623,7 @@ fun VitalsScreen(
                                     ThresholdBar(value = state.bloodSugar, thresholds = th)
                                 }
                                 Spacer(Modifier.height(12.dp))
-                                SimpleLineChart(points = state.glucoseSamples, color = androidx.compose.ui.graphics.Color(0xFF00897B))
+                                SimpleLineChart(points = state.glucoseSamples, color = androidx.compose.ui.graphics.Color(0xFF00897B), thresholds = MetricThresholdTable.forKind(MeasurementKind.BLOOD_SUGAR))
                             }
                         } else {
                             Text("No blood sugar data yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1098,6 +1098,7 @@ fun VitalDetailScreen(
                         colorSecondary = androidx.compose.ui.graphics.Color(0xFFB39DDB),
                         legendPrimary = if (state.isBP) "Systolic" else null,
                         legendSecondary = if (state.isBP) "Diastolic" else null,
+                        thresholds = state.thresholds,
                     )
                 }
 

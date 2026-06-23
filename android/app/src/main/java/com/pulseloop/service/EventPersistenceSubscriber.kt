@@ -148,7 +148,9 @@ class EventPersistenceSubscriber(
     }
 
     private suspend fun upsertActivityDaily(ts: Long, steps: Int, calories: Double, distanceM: Double) {
-        val dayStart = java.time.Instant.ofEpochMilli(ts).truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochMilli()
+        // Key the daily row by local midnight so it matches the Today dashboard and
+        // MetricsService/notifications, which all read per-day rows by local-day boundary.
+        val dayStart = com.pulseloop.util.TimeUtil.startOfDayLocal(ts)
         val existing = db.activityDailyDao().byDay(dayStart)
         if (existing != null) {
             db.activityDailyDao().upsert(existing.copy(
@@ -167,7 +169,9 @@ class EventPersistenceSubscriber(
 
     private suspend fun upsertSleepSession(ts: Long, stages: List<SleepStage>) {
         if (stages.isEmpty()) return
-        val dayStart = java.time.Instant.ofEpochMilli(ts).truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochMilli()
+        // Local-day key so a night is attributed to the correct local date (and stitches
+        // with same-night packets) rather than flipping at UTC midnight.
+        val dayStart = com.pulseloop.util.TimeUtil.startOfDayLocal(ts)
         val sessionId = "sleep-$dayStart"
 
         // The ring streams a night as many 15-minute 0x11 packets that must be STITCHED,

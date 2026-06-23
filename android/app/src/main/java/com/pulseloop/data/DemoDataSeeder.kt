@@ -12,8 +12,8 @@ import java.time.temporal.ChronoUnit
  */
 object DemoDataSeeder {
     suspend fun seed(db: PulseLoopDatabase) = withContext(Dispatchers.IO) {
-        val now = Instant.now()
-        val today = now.truncatedTo(ChronoUnit.DAYS)
+        // Local midnight so seeded "today" rows match how the app keys per-day data.
+        val today = Instant.ofEpochMilli(com.pulseloop.util.TimeUtil.startOfTodayLocal())
 
         // Device — do NOT create a fake connected device; the real ring creates its own
         // when it connects. We seed a disconnected stub so the UI shows "no ring" state.

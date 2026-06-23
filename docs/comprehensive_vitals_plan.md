@@ -195,18 +195,24 @@ pressure (which spans two kinds). Map `"bp"` → systolic+diastolic inside the d
 Today only 24h raw `range` exists. For Week/Month we want one point per hour (Day) or per
 day (Week/Month) so charts stay legible and queries stay cheap. Add to `MeasurementDao`:
 
+Day buckets must align to **local** midnight (consistent with the rest of the app — see
+`util/TimeUtil`), so pass the device's current UTC offset (millis) into the SQL bucketing
+rather than truncating raw UTC:
+
 ```kotlin
-// Average per UTC-day bucket — used for Week (7 buckets) and Month (~30 buckets).
+// Average per LOCAL-day bucket — pass tzOffsetMs = ZoneId.systemDefault() offset for `now`.
+// Week = 7 buckets, Month = ~30 buckets.
 @Query("""
-    SELECT CAST(timestamp / 86400000 AS INTEGER) * 86400000 AS bucket,
+    SELECT (CAST((timestamp + :tzOffsetMs) / 86400000 AS INTEGER) * 86400000) - :tzOffsetMs AS bucket,
            AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue
     FROM measurements
     WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end
     GROUP BY bucket ORDER BY bucket ASC
 """)
-suspend fun dailyAggregates(kind: String, start: Long, end: Long): List<Bucket>
+suspend fun dailyAggregates(kind: String, start: Long, end: Long, tzOffsetMs: Long): List<Bucket>
 
-// Average per hour bucket — used for the Day view to smooth dense sampling.
+// Average per hour bucket — used for the Today view to smooth dense sampling (UTC-hour
+// bucketing is fine for hourly granularity; label the buckets in local time in the VM).
 @Query("""
     SELECT CAST(timestamp / 3600000 AS INTEGER) * 3600000 AS bucket,
            AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue
@@ -218,8 +224,11 @@ suspend fun hourlyAggregates(kind: String, start: Long, end: Long): List<Bucket>
 ```
 
 `Bucket` is a small POJO (`bucket: Long, avgValue: Double, minValue: Double, maxValue: Double`).
-Day-bucketing on `timestamp / 86400000` is UTC; if local-day alignment matters, offset by the
-device's UTC offset before bucketing (acceptable to defer — note it as a known simplification).
+The VM computes `tzOffsetMs` from `ZoneId.systemDefault().rules.getOffset(Instant.now())` and
+derives Today/Week/Month window bounds with `TimeUtil.startOfTodayLocal()` /
+`TimeUtil.startOfDayLocal(...)`, so every period boundary is local-midnight aligned.
+(For an exact-but-heavier alternative, drop the SQL day-bucketing and group the raw `range()`
+rows in Kotlin via `TimeUtil.startOfDayLocal(it.timestamp)` — correct across DST too.)
 
 ## 3.3 `VitalDetailViewModel`
 

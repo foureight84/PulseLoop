@@ -12,8 +12,6 @@ import com.pulseloop.service.SleepScoreResult
 import com.pulseloop.settings.ApiKeyStore
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 
 /**
  * TodayViewModel — reads Room data for the Today dashboard.
@@ -21,7 +19,9 @@ import java.time.temporal.ChronoUnit
  * Uses reactive Flow queries so live ring data appears immediately.
  */
 class TodayViewModel(db: PulseLoopDatabase, private val apiKeyStore: ApiKeyStore? = null) : ViewModel() {
-    private val todayStart = Instant.now().truncatedTo(ChronoUnit.DAYS).toEpochMilli()
+    // Local midnight, not UTC — the Today dashboard rolls over at the device's local
+    // midnight so daily stats line up with how the rest of the app keys per-day rows.
+    private val todayStart = com.pulseloop.util.TimeUtil.startOfTodayLocal()
 
     data class TodayState(
         val steps: Int? = null,

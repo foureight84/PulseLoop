@@ -39,8 +39,34 @@ object ColmiDecoder {
             ColmiCommandID.REALTIME_HEART_RATE_ERROR ->
                 listOf(RingDecodedEvent.HeartRateComplete(_timestamp = now))
             ColmiCommandID.NOTIFICATION -> decodeNotification(v, now)
+            ColmiCommandID.BP_READ -> decodeBpResponse(v, now)
             else -> listOf(RingDecodedEvent.CommandAck(commandId = v[0]))
         }
+    }
+
+    private fun decodeBpResponse(v: List<UByte>, now: Instant): List<RingDecodedEvent> {
+        // Sentinel: ffffffff means no more data
+        if (v.size >= 5 && v[1] == 0xFFu.toUByte() && v[2] == 0xFFu.toUByte() &&
+            v[3] == 0xFFu.toUByte() && v[4] == 0xFFu.toUByte()) {
+            return emptyList()
+        }
+        // Each frame: [cmd=0x14, ts(4 bytes, LE), dia(1), sys(1)]
+        if (v.size < 7) return emptyList()
+        val ts = (v[1].toLong() or (v[2].toLong() shl 8) or (v[3].toLong() shl 16) or (v[4].toLong() shl 24)) * 1000L
+        val dia = v[5].toInt()
+        val sys = v[6].toInt()
+        if (sys == 0 && dia == 0) return emptyList()
+        val instant = Instant.ofEpochMilli(ts)
+        return listOf(
+            RingDecodedEvent.HistoryMeasurement(
+                kind_field = MeasurementKind.BLOOD_PRESSURE_SYSTOLIC,
+                value = sys.toDouble(), _timestamp = instant
+            ),
+            RingDecodedEvent.HistoryMeasurement(
+                kind_field = MeasurementKind.BLOOD_PRESSURE_DIASTOLIC,
+                value = dia.toDouble(), _timestamp = instant
+            ),
+        )
     }
 
     private fun decodeNotification(v: List<UByte>, now: Instant): List<RingDecodedEvent> = when (v[1]) {
@@ -161,6 +187,7 @@ object ColmiDecoder {
             ColmiCommandID.BIG_DATA_SPO2 -> decodeSpo2(data, zone)
             ColmiCommandID.BIG_DATA_SLEEP -> decodeSleep(data, zone)
             ColmiCommandID.BIG_DATA_TEMPERATURE -> decodeTemperature(data, zone)
+            ColmiCommandID.BIG_DATA_BLOOD_SUGAR -> decodeBloodSugar(data, zone)
             else -> listOf(RingDecodedEvent.Unknown(commandId = v[1], raw = data))
         }
     }
@@ -269,5 +296,40 @@ object ColmiDecoder {
         ColmiCommandID.SLEEP_REM -> SleepStage.REM
         ColmiCommandID.SLEEP_AWAKE -> SleepStage.AWAKE
         else -> SleepStage.UNKNOWN
+    }
+
+    /**
+     * Decode blood sugar big-data response.
+     * Format (best-guess, validate with real ring): same structure as temperature —
+     * per-day entries with day index + hourly readings. Each reading is mg/dL × 10.
+     */
+    private fun decodeBloodSugar(data: ByteArray, zone: ZoneId): List<RingDecodedEvent> {
+        val v = data.map { it.toUByte() }
+        val length = ColmiBytes.u16(v[2], v[3])
+        if (length < 2) return emptyList()
+        var index = 6
+        val events = mutableListOf<RingDecodedEvent>()
+        var daysAgo = -1
+        val today = LocalDate.now(zone)
+        while (daysAgo != 0 && index - 6 < length && index < v.size) {
+            daysAgo = v[index].toInt(); index++
+            index++ // skip unknown byte
+            val dayStart = today.minusDays(daysAgo.toLong())
+            for (hour in 0..23) {
+                if (index + 1 >= v.size) break
+                val hi = v[index].toInt(); index++
+                val lo = v[index].toInt(); index++
+                val raw = ((hi shl 8) or lo)
+                if (raw > 0) {
+                    events.add(RingDecodedEvent.HistoryMeasurement(
+                        kind_field = MeasurementKind.BLOOD_SUGAR,
+                        value = raw.toDouble() / 10.0,
+                        _timestamp = dayStart.atTime(hour, 0).atZone(zone).toInstant()
+                    ))
+                }
+                if (index - 6 >= length) break
+            }
+        }
+        return events
     }
 }

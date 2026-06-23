@@ -496,10 +496,14 @@ fun VitalsScreen(
                         Spacer(Modifier.height(4.dp))
                         val hrvVal = state.latestHrv
                         if (hrvVal != null && state.hrvSamples.isNotEmpty()) {
+                            val hrvAvg = state.hrvSamples.average().toInt()
+                            val hrvMin = state.hrvSamples.min().toInt()
+                            val hrvMax = state.hrvSamples.max().toInt()
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(String.format("%.0f", hrvVal), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(" ms", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
+                            Text("Range: $hrvMin – $hrvMax · Avg: $hrvAvg ms", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             MetricThresholdTable.forKind(MeasurementKind.HRV)?.let { th ->
                                 Spacer(Modifier.height(8.dp))
                                 ThresholdBar(value = state.latestHrv, thresholds = th)
@@ -517,7 +521,7 @@ fun VitalsScreen(
         // Temperature (capability-gated)
         if (state.supportsTemp) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/temp") }) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Skin Temperature", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -530,8 +534,23 @@ fun VitalsScreen(
                                 Text(String.format("%.1f", displayTemp), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(" $displayUnit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
+                            val tempAvg = state.tempSamples.average()
+                            val tempMin = state.tempSamples.min()
+                            val tempMax = state.tempSamples.max()
+                            Text(
+                                String.format("Range: %.1f – %.1f · Avg: %.1f $displayUnit",
+                                    UnitConverter.temperature(tempMin, units),
+                                    UnitConverter.temperature(tempMax, units),
+                                    UnitConverter.temperature(tempAvg, units)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            MetricThresholdTable.forKind(MeasurementKind.TEMPERATURE)?.let { th ->
+                                Spacer(Modifier.height(8.dp))
+                                ThresholdBar(value = tempVal, thresholds = th)
+                            }
                             Spacer(Modifier.height(12.dp))
-                            SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043), thresholds = MetricThresholdTable.forKind(MeasurementKind.TEMPERATURE))
+                            SimpleLineChart(points = state.tempSamples, color = androidx.compose.ui.graphics.Color(0xFFFF7043))
                         } else {
                             Text("No temperature data yet — temperature trends appear after overnight wear.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

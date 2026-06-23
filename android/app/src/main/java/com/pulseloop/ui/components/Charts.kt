@@ -418,6 +418,18 @@ fun TrendChart(
                 } else {
                     drawPath(linePath, seriesColor, style = Stroke(width = 2f, cap = StrokeCap.Round))
                 }
+
+                // Current-value marker: larger highlighted dot at the last point
+                if (series.size >= 2) {
+                    val lastIdx = series.lastIndex
+                    val lastX = pad + lastIdx * stepX
+                    val lastY = topPad + (h - topPad - bottomPad) * (1f - ((series[lastIdx] - min) / range).toFloat())
+                    val lastColor = if (zoneColored) thresholds?.zoneFor(series[lastIdx])?.color ?: seriesColor else seriesColor
+                    // White ring
+                    drawCircle(Color.White, 7f, Offset(lastX, lastY))
+                    // Colored inner dot
+                    drawCircle(lastColor, 5f, Offset(lastX, lastY))
+                }
             }
 
             drawSeries(secondary, colorSecondary)

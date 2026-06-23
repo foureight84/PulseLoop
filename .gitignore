@@ -47,3 +47,4 @@ graphify-out/
 # Agent skill tooling
 .agents/
 skills-lock.json
+decompiled-qring-official/

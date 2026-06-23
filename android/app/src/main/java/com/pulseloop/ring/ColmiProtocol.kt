@@ -33,6 +33,8 @@ object ColmiCommandID {
     const val SYNC_HRV: UByte = 0x39u
     const val AUTO_TEMP_PREF: UByte = 0x3Au
     const val SYNC_ACTIVITY: UByte = 0x43u
+    const val BP_READ: UByte = 0x14u
+    const val BP_CONFIRM: UByte = 0x0Eu
     const val FIND_DEVICE: UByte = 0x50u
     const val MANUAL_HEART_RATE: UByte = 0x69u
     const val NOTIFICATION: UByte = 0x73u
@@ -51,6 +53,7 @@ object ColmiCommandID {
     const val NOTIF_LIVE_ACTIVITY: UByte = 0x12u
 
     // Big-data types
+    const val BIG_DATA_BLOOD_SUGAR: UByte = 0x47u
     const val BIG_DATA_TEMPERATURE: UByte = 0x25u
     const val BIG_DATA_SLEEP: UByte = 0x27u
     const val BIG_DATA_SPO2: UByte = 0x2Au

@@ -21,7 +21,7 @@ class ColmiSyncEngine(
     private val zone = ZoneId.systemDefault()
 
     // History state machine
-    private enum class Stage { IDLE, ACTIVITY, HEART_RATE, STRESS, SPO2, SLEEP, HRV, TEMPERATURE, DONE }
+    private enum class Stage { IDLE, ACTIVITY, HEART_RATE, STRESS, SPO2, SLEEP, HRV, BP, TEMPERATURE, BLOOD_SUGAR, DONE }
 
     private var stage = Stage.IDLE
     private var daysAgo = 0
@@ -43,7 +43,8 @@ class ColmiSyncEngine(
             op == ColmiCommandID.SYNC_ACTIVITY ||
             op == ColmiCommandID.SYNC_HEART_RATE ||
             op == ColmiCommandID.SYNC_STRESS ||
-            op == ColmiCommandID.SYNC_HRV
+            op == ColmiCommandID.SYNC_HRV ||
+            op == ColmiCommandID.BP_READ
     }
 
     override fun runStartup() {
@@ -89,7 +90,10 @@ class ColmiSyncEngine(
             ColmiCommandID.BIG_DATA_SLEEP -> {
                 stage = Stage.HRV; daysAgo = 0; requestHRV(); armWatchdog()
             }
-            ColmiCommandID.BIG_DATA_TEMPERATURE -> finishSync()
+            ColmiCommandID.BIG_DATA_TEMPERATURE -> {
+                stage = Stage.BLOOD_SUGAR; requestBloodSugar(); armWatchdog()
+            }
+            ColmiCommandID.BIG_DATA_BLOOD_SUGAR -> finishSync()
         }
     }
 
@@ -124,9 +128,12 @@ class ColmiSyncEngine(
         writer?.enqueue(encoder.syncHRV(daysAgo))
     }
 
+    private fun requestBp() { writer?.enqueue(encoder.syncBp()) }
+
     private fun requestSpo2() { writer?.enqueue(encoder.bigDataSpo2()) }
     private fun requestSleep() { writer?.enqueue(encoder.bigDataSleep()) }
     private fun requestTemperature() { writer?.enqueue(encoder.bigDataTemperature()) }
+    private fun requestBloodSugar() { writer?.enqueue(encoder.bigDataBloodSugar()) }
 
     private fun dayStart(daysAgo: Int): LocalDate = LocalDate.now(zone).minusDays(daysAgo.toLong())
 
@@ -150,7 +157,11 @@ class ColmiSyncEngine(
             Stage.STRESS -> { stage = Stage.SPO2; requestSpo2() }
             Stage.HRV -> {
                 if (daysAgo < 6) { daysAgo++; requestHRV() }
-                else { stage = Stage.TEMPERATURE; requestTemperature() }
+                else { stage = Stage.BP; requestBp() }
+            }
+            Stage.BP -> {
+                // BP is a single bulk response, not paged
+                stage = Stage.TEMPERATURE; requestTemperature()
             }
             else -> {}
         }
@@ -185,8 +196,10 @@ class ColmiSyncEngine(
             Stage.STRESS -> { stage = Stage.SPO2; requestSpo2() }
             Stage.SPO2 -> { stage = Stage.SLEEP; requestSleep() }
             Stage.SLEEP -> { daysAgo = 0; stage = Stage.HRV; requestHRV() }
-            Stage.HRV -> { stage = Stage.TEMPERATURE; requestTemperature() }
-            Stage.TEMPERATURE -> finishSync()
+            Stage.HRV -> { stage = Stage.BP; requestBp() }
+            Stage.BP -> { stage = Stage.TEMPERATURE; requestTemperature() }
+            Stage.TEMPERATURE -> { stage = Stage.BLOOD_SUGAR; requestBloodSugar() }
+            Stage.BLOOD_SUGAR -> finishSync()
             else -> {}
         }
         if (stage != Stage.DONE) armWatchdog()

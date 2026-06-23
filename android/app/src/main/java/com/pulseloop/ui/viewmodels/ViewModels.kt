@@ -110,7 +110,11 @@ class TodayViewModel(db: PulseLoopDatabase, private val apiKeyStore: ApiKeyStore
                 try {
                     val sys = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)
                     val dia = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)
-                    _state.update { it.copy(bloodPressureSystolic = sys?.toInt(), bloodPressureDiastolic = dia?.toInt(), lastUpdated = System.currentTimeMillis()) }
+                    _state.update { it.copy(
+                        bloodPressureSystolic = sys?.toInt()?.plus(apiKeyStore?.bpAdjustSystolic ?: 0),
+                        bloodPressureDiastolic = dia?.toInt()?.plus(apiKeyStore?.bpAdjustDiastolic ?: 0),
+                        lastUpdated = System.currentTimeMillis()
+                    ) }
                 } catch (_: Exception) {}
                 kotlinx.coroutines.delay(5000)
             }
@@ -284,8 +288,10 @@ class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore
             latestStress = stress.lastOrNull()?.value,
             latestFatigue = fatigue.lastOrNull()?.value,
             latestTemp = temp.lastOrNull()?.value,
-            bpSystolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)?.toInt(),
-            bpDiastolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)?.toInt(),
+            bpSystolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)?.toInt()
+                ?.plus(apiKeyStore?.bpAdjustSystolic ?: 0),
+            bpDiastolic = db.measurementDao().latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)?.toInt()
+                ?.plus(apiKeyStore?.bpAdjustDiastolic ?: 0),
             bloodSugar = db.measurementDao().latest(MeasurementKind.BLOOD_SUGAR.name)
                 ?.plus(glucoseOffset),
             bpSysSamples = bpSys.map { it.value },

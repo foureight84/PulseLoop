@@ -113,6 +113,27 @@ object ColmiEncoder {
         ColmiCommandID.BIG_DATA_V2.toByte(), ColmiCommandID.BIG_DATA_TEMPERATURE.toByte(),
         0x01, 0x00, 0x3E, 0x81.toByte(), 0x02,
     )
+
+    fun bigDataBloodSugar(): ByteArray = byteArrayOf(
+        ColmiCommandID.BIG_DATA_V2.toByte(), ColmiCommandID.BIG_DATA_BLOOD_SUGAR.toByte(),
+        0x01, 0x00, 0xFF.toByte(), 0x00, 0xFF.toByte(),
+    )
+
+    /** Request BP history from the ring. [fromUnix] = starting epoch (0 = all available). */
+    fun syncBp(fromUnix: Int = 0): ByteArray {
+        val ts = fromUnix.toUInt()
+        return byteArrayOf(
+            ColmiCommandID.BP_READ.toByte(),
+            (ts and 0xFFu).toByte(),
+            ((ts shr 8) and 0xFFu).toByte(),
+            ((ts shr 16) and 0xFFu).toByte(),
+            ((ts shr 24) and 0xFFu).toByte(),
+            0x00, 0x32,  // count = 50
+        )
+    }
+
+    fun confirmBp(success: Boolean = true): ByteArray =
+        byteArrayOf(ColmiCommandID.BP_CONFIRM.toByte(), if (success) 0x00 else 0xFF.toByte())
 }
 
 /**
@@ -141,6 +162,7 @@ object ColmiCoordinator : WearableCoordinator {
         WearableCapability.SLEEP, WearableCapability.BATTERY,
         WearableCapability.REM_SLEEP, WearableCapability.STRESS, WearableCapability.HRV,
         WearableCapability.TEMPERATURE,
+        WearableCapability.BLOOD_PRESSURE, WearableCapability.BLOOD_SUGAR,
         WearableCapability.MANUAL_HEART_RATE, WearableCapability.REALTIME_HEART_RATE,
         WearableCapability.REALTIME_STEPS,
         WearableCapability.FIND_DEVICE, WearableCapability.POWER_OFF, WearableCapability.FACTORY_RESET,

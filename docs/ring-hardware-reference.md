@@ -7,14 +7,24 @@
 
 ## Platform Overview
 
-Three distinct hardware platforms have been identified across the cheap smart ring market:
+Multiple hardware platforms span from $7 commodity rings to $350 premium devices:
 
-| Platform | SoC | Protocol | App | Price |
-|---|---|---|---|---|
-| **56ff / Jring** | Renesas DA14531 | Custom 56ff (SXR KeepFit SDK) | Jring / KeepFit | $7–12 |
-| **Colmi / Yawell (QRing)** | Realtek RTL8762 family | Nordic-UART (QRing) | QRing | $15–30 |
-| **Colmi R11 ("Da Rings")** | AB2026 (Actions/Airoha) | Unknown (different from QRing) | Da Rings | ~$15–25 |
-| **SIMSONLAB** | Phyplus PHY6222 | Unknown | SIMSONLAB app | ~$10–20 |
+### Budget / Commodity Rings
+
+| Platform | SoC | Protocol | App | Price | Hackable |
+|---|---|---|---|---|---|
+| **56ff / Jring** | Renesas DA14531 | Custom 56ff (SXR KeepFit SDK) | Jring / KeepFit | $7–12 | ✅ App + FW |
+| **Colmi / Yawell (QRing)** | Realtek RTL8762 family | Nordic-UART (QRing) | QRing | $15–30 | ✅ App (R02 FW too) |
+| **Colmi R11 ("Da Rings")** | AB2026 (Actions/Airoha) | Unknown (different from QRing) | Da Rings | ~$15–25 | ❌ |
+| **SIMSONLAB** | Phyplus PHY6222 | Unknown | SIMSONLAB app | ~$10–20 | ❌ |
+
+### Premium Rings
+
+| Platform | SoC | Protocol | App | Price | Subscription | Hackable |
+|---|---|---|---|---|---|---|
+| **Oura Gen 4** | Nordic nRF52840 | Encrypted proprietary | Oura app | $349 | **$5.99/mo required** | ❌ |
+| **Ultrahuman Ring Air** | nRF52840 + STM32G0 | Documented (Gadgetbridge) | Ultrahuman | $349 | ❌ None | ✅ App protocol |
+| **RingConn Gen 2 Air** | Unknown (Nordic likely) | Proprietary | RingConn | $199 | ❌ None | ❌ |
 
 ---
 
@@ -241,7 +251,148 @@ The VC30F is the PPG bio-sensor used in R10 and R12:
 
 ---
 
-## 5. Quick Comparison
+## 5. Oura-Class Premium Rings
+
+These rings compete with Oura on hardware quality but without the subscription lock-in.
+
+### Oura Ring (Gen 3 / Gen 4)
+
+| Component | Gen 3 (2021) | Gen 4 (2024) |
+|---|---|---|
+| **SoC** | Nordic nRF52840 (Cortex-M4F, 64 MHz, 1 MB flash, 256 KB RAM) | Nordic nRF52840 |
+| **PPG** | 2× green LED + red/IR multi-chip LED + 2× photodiodes | 2 clusters × green/red/IR LEDs + 3× photodiodes, 18-path multi-wavelength |
+| **Temperature** | NTC thermistor (indirect) | NTC thermistor (indirect) |
+| **Accelerometer** | 3-axis | 3-axis |
+| **Battery** | 16 mAh (Grepow YE160723G) | 26 mAh |
+| **Battery life** | 4–7 days | Up to 8 days |
+| **Battery management** | TI BQ25120A | Unknown |
+| **Charging** | Wireless inductive | Wireless inductive |
+| **Price** | $299+ (discontinued) | $349 + **$5.99/mo subscription required** |
+| **BLE** | Encrypted, proprietary | Encrypted, proprietary |
+| **Open docs** | ❌ Completely closed | ❌ Completely closed |
+
+### Ultrahuman Ring Air
+
+| Component | Detail |
+|---|---|
+| **BLE SoC** | Nordic nRF52840 (Cortex-M4F, 64 MHz, 1 MB flash, 256 KB RAM, BLE 5.0) |
+| **Coprocessor** | STM32G0 (STMicro) — dedicated sensor DSP |
+| **Sensors** | PPG (HR, HRV, SpO₂), skin temperature, 3-axis accelerometer |
+| **Battery** | ~4–6 days |
+| **Price** | $349, **no subscription** |
+| **Open docs** | ✅ BLE protocol fully documented by Gadgetbridge |
+
+**Dual-MCU architecture:** The nRF52840 handles BLE + main processing, while the STM32G0 coprocessor runs sensor data processing and power management — arguably more capable than Oura's single-MCU design.
+
+**BLE Protocol (Gadgetbridge):**
+- Device name: `UH_XXXXXXXXXXXXXXXX`
+- Device State service: `86f61000-f706-58a0-95b2-1fb9261e4dc7` — battery level, charging state, temperature
+- Command service: `86f65000-f706-58a0-95b2-1fb9261e4dc7` — opcodes for set time, get recordings, airplane mode, reset, power saving
+- All opcodes and payload formats documented
+
+### RingConn Gen 2 / Gen 2 Air
+
+| Component | Detail |
+|---|---|
+| **Sensors** | PPG (HR, HRV, SpO₂), skin temperature, 3-axis accelerometer |
+| **Battery** | 10+ days (class-leading) |
+| **Price** | Gen 2: $299 / Gen 2 Air: **$199**, **no subscription** |
+| **Open docs** | ❌ No known reverse engineering or public protocol docs |
+
+### Premium Ring Comparison
+
+| | Oura Gen 4 | Ultrahuman Air | RingConn G2 Air |
+|---|---|---|---|
+| **SoC** | nRF52840 | nRF52840 + STM32G0 | Unknown (likely Nordic) |
+| **Architecture** | Cortex-M4F | Cortex-M4F + Cortex-M0 | Unknown |
+| **PPG** | Custom 18-path | Multi-LED | Multi-LED |
+| **Temperature** | NTC thermistor | ✅ Skin temp | ✅ Skin temp |
+| **Battery** | 8 days | 4–6 days | 10+ days |
+| **Subscription** | **$5.99/mo required** | ❌ None | ❌ None |
+| **Price** | $349 + sub | $349 | $199 |
+| **Protocol open** | ❌ | ✅ (Gadgetbridge) | ❌ |
+| **Custom firmware** | ❌ | ❌ (nRF locked) | ❌ |
+
+---
+
+## 6. Hackability & Open Documentation
+
+A breakdown of which rings can be used with custom software or firmware.
+
+### 🏆 Full-Stack Hackable: Colmi R02 / R03 / R06
+
+Per Hackaday's deep-dive by Aaron Christophel, the Colmi R02 is the most hacker-friendly ring:
+
+| What | Detail |
+|---|---|
+| **Custom firmware** | Flashable via BLE OTA — **no signing, no encryption** |
+| **Debug interface** | SWD pads accessible (scrape epoxy to expose) |
+| **MCU** | BXMicro chip, 512 KB flash, 200 KB RAM |
+| **SDK** | [BXMicro SDK3](https://gitee.com/BXMicro/SDK3) |
+| **Reference FW** | [atc1441/ATC_RF03_Ring](https://github.com/atc1441/ATC_RF03_Ring) |
+| **App protocol** | Documented in PulseLoop + Gadgetbridge |
+| **Price** | $15–25 |
+
+The manufacturer publishes firmware update images with no authenticity checks — upload whatever you want over BLE. Combined with SWD debugging, this is the closest thing to an open-source smart ring in production.
+
+### 🥈 Protocol-Documented: Ultrahuman Ring Air
+
+- ✅ Full BLE protocol documented on [Gadgetbridge](https://gadgetbridge.org/internals/specifics/ultrahuman-protocol/)
+- ✅ Every service UUID, opcode, and payload layout is public
+- ✅ You can write a custom app that talks directly to the ring — no vendor app needed
+- ❌ Custom firmware unlikely — nRF52840 typically has readback protection enabled
+- **Price:** $349, no subscription
+
+### 🥈 Protocol-Documented: 56ff / Jring
+
+- ✅ Protocol fully reverse-engineered (PulseLoop's `docs/ring-protocol.md`)
+- ✅ Open-source firmware skeleton: [atc1441/ATC_SR08_Ring](https://github.com/atc1441/ATC_SR08_Ring)
+- ✅ Official SDK protocol doc: `深新锐蓝牙协议v3.0.docx` (keeprapid/krwatch)
+- ✅ Cleartext BLE, no encryption
+- ✅ Renesas SUOTA for firmware OTA
+- **Price:** $7–12
+
+### 🥉 Protocol-Documented: Colmi/Yawell QRing family
+
+- ✅ BLE protocol reverse-engineered (PulseLoop + Gadgetbridge)
+- ✅ Nordic-UART based, unencrypted
+- ✅ Custom app possible (PulseLoop already does it)
+- ⚠️ Custom firmware: confirmed possible on R02/R03 (BXMicro); unknown for R10/R12 (Realtek RTL8762)
+- **Price:** $15–30
+
+### Open-Source DIY Platforms
+
+| Project | Detail |
+|---|---|
+| **[Open Ring](https://github.com/stawiski/open-ring)** | Open-source hardware + firmware reference design |
+| **KuoQuo's smart ring dev board** | nRF-based I2C sensor platform, designed for firmware hacking |
+| **[ATC_SR08_Ring](https://github.com/atc1441/ATC_SR08_Ring)** | Open-source firmware for 56ff/Jring hardware |
+| **[ATC_RF03_Ring](https://github.com/atc1441/ATC_RF03_Ring)** | Open-source firmware for Colmi R02/R03 hardware |
+| **[ringverse/protocol](https://github.com/ringverse/protocol)** | Community reverse engineering of smart ring protocols |
+
+### ❌ Fully Locked Down
+
+| Ring | Reason |
+|---|---|
+| **Oura (all generations)** | Encrypted BLE, proprietary protocol, no public docs, subscription-gated features |
+| **RingConn Gen 2 / Air** | No known reverse engineering, no public protocol docs |
+| **SIMSONLAB LA380-YJ** | Unknown protocol, no documentation found |
+
+### Hackability Summary
+
+| Ring | Custom App | Custom Firmware | Price |
+|---|---|---|---|
+| **Colmi R02/R03** | ✅ PulseLoop, Gadgetbridge | ✅ OTA, SWD, SDK | $15–25 |
+| **56ff / Jring** | ✅ PulseLoop, Gadgetbridge | ✅ SUOTA, open-source FW | $7–12 |
+| **Colmi R10/R12** | ✅ PulseLoop, Gadgetbridge | ⚠️ Unknown (Realtek locked?) | $15–30 |
+| **Ultrahuman Ring Air** | ✅ Gadgetbridge protocol | ❌ nRF locked | $349 |
+| **RingConn Gen 2** | ❌ No public protocol | ❌ | $199–299 |
+| **Oura Ring** | ❌ Encrypted BLE | ❌ | $349 + sub |
+| **SIMSONLAB** | ❌ Unknown protocol | ❌ | $10–20 |
+
+---
+
+## 7. Quick Comparison
 
 ### Sensor quality
 
@@ -276,7 +427,7 @@ The VC30F is the PPG bio-sensor used in R10 and R12:
 
 ---
 
-## 6. References
+## 8. References
 
 - **PulseLoop protocol docs**: `docs/ring-protocol.md`, `docs/protocol-discoveries.md`, `docs/keepfit-protocol-complete.md`
 - **Gadgetbridge Yawell/Colmi page**: [gadgetbridge.org/gadgets/wearables/yawell/](https://gadgetbridge.org/gadgets/wearables/yawell/)
@@ -290,3 +441,11 @@ The VC30F is the PPG bio-sensor used in R10 and R12:
 - **PHY6222 datasheet** (Phyplus Technologies)
 - **Yawell company profile**: [yawellfit.com](https://www.yawellfit.com/p/about.html)
 - **Colmi official**: [colmi.com](https://www.colmi.com/), [colmi.info](https://www.colmi.info/)
+- **Ultrahuman Protocol (Gadgetbridge)**: [gadgetbridge.org/internals/specifics/ultrahuman-protocol/](https://gadgetbridge.org/internals/specifics/ultrahuman-protocol/)
+- **Hackaday — Hackable Smart Ring**: [New Part Day: A Hackable Smart Ring](https://hackaday.com/2024/06/16/new-part-day-a-hackable-smart-ring/)
+- **ATC_RF03_Ring (custom FW for Colmi R02)**: [github.com/atc1441/ATC_RF03_Ring](https://github.com/atc1441/ATC_RF03_Ring)
+- **Open Ring (open-source HW/FW)**: [github.com/stawiski/open-ring](https://github.com/stawiski/open-ring)
+- **Ultrahuman Ring Air teardown**: [makingstudio.blog](https://makingstudio.blog/2024/09/10/ultrahuman-ring-air-teardown/)
+- **Oura Ring teardown (Becky Stern)**: [beckystern.com](https://beckystern.com/2022/04/17/oura-ring-teardown-gen-3-and-gen-2/)
+- **Oura Ring 4 deep-dive (EDN)**: [edn.com](https://www.edn.com/the-oura-ring-4-does-one-more-deliver-much-if-any-more/)
+- **Wareable best smart rings 2026**: [wareable.com](https://www.wareable.com/fashion/best-smart-rings-1340)

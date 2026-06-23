@@ -6,6 +6,7 @@ import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.data.dao.Bucket
 import com.pulseloop.data.entity.*
 import com.pulseloop.ring.*
+import com.pulseloop.service.HeartRateZones
 import com.pulseloop.service.SleepCoach
 import com.pulseloop.service.SleepInsights
 import com.pulseloop.service.SleepScore
@@ -77,12 +78,18 @@ class TodayViewModel(db: PulseLoopDatabase, private val apiKeyStore: ApiKeyStore
                 ) }
             }
         }
-        // Reactive HR — poll latest every 2s, resilient to DB errors
+        // Reactive HR — poll latest every 2s, resilient to DB errors.
+        // Also derive resting HR from the last 24h of samples (low-percentile estimate).
         viewModelScope.launch {
             while (true) {
                 try {
+                    val nowMs = System.currentTimeMillis()
                     val hr = db.measurementDao().latest(MeasurementKind.HEART_RATE.name)
-                    _state.update { it.copy(heartRate = hr?.toInt(), lastUpdated = System.currentTimeMillis()) }
+                    val samples = db.measurementDao()
+                        .range(MeasurementKind.HEART_RATE.name, nowMs - 24 * 3600_000L, nowMs)
+                        .map { it.value }
+                    val resting = com.pulseloop.service.HeartRateZones.restingHeartRate(samples)
+                    _state.update { it.copy(heartRate = hr?.toInt(), restingHR = resting, lastUpdated = nowMs) }
                 } catch (_: Exception) {}
                 kotlinx.coroutines.delay(2000)
             }
@@ -201,6 +208,7 @@ class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore
         val fatigueSamples: List<Double> = emptyList(),
         val tempSamples: List<Double> = emptyList(),
         val latestHr: Int? = null,
+        val restingHr: Double? = null,
         val latestSpo2: Int? = null,
         val latestHrv: Double? = null,
         val latestStress: Double? = null,
@@ -270,6 +278,7 @@ class VitalsViewModel(private val db: PulseLoopDatabase, private val apiKeyStore
             fatigueSamples = fatigue.map { it.value },
             tempSamples = temp.map { it.value },
             latestHr = hr.lastOrNull()?.value?.toInt(),
+            restingHr = HeartRateZones.restingHeartRate(hr.map { it.value }),
             latestSpo2 = spo2.lastOrNull()?.value?.toInt(),
             latestHrv = hrv.lastOrNull()?.value,
             latestStress = stress.lastOrNull()?.value,
@@ -366,6 +375,7 @@ class VitalDetailViewModel(
         val min: Double? = null,
         val avg: Double? = null,
         val max: Double? = null,
+        val resting: Double? = null,   // heart rate only
         val trend: Trend = Trend.FLAT,
         val thresholds: MetricThresholds? = null,
         val loading: Boolean = true,
@@ -559,10 +569,18 @@ class VitalDetailViewModel(
                 else -> rawLatest
             }
 
+            // Resting HR from the window's raw samples (not the hourly/daily averages,
+            // which would wash out the low at-rest readings).
+            val resting = if (kind == MeasurementKind.HEART_RATE) {
+                val raw = dao.range(kindName, anchor, windowEnd).map { it.value }
+                HeartRateZones.restingHeartRate(raw)
+            } else null
+
             _state.update { it.copy(
                 points = points, secondary = emptyList(), labels = labels,
                 latest = latest,
                 min = points.minOrNull(), avg = thisAvg, max = points.maxOrNull(),
+                resting = resting,
                 trend = trend, loading = false,
             ) }
         }

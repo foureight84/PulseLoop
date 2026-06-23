@@ -26,6 +26,22 @@ object HeartRateZones {
             else -> Zone.MAX
         }
     }
+
+    /**
+     * Resting heart rate estimate from a set of HR samples. Uses a low percentile of
+     * the readings (default 10th) to approximate the lowest *sustained* at-rest rate —
+     * more robust than a single minimum (which can be a momentary dip) and lower than a
+     * daytime average. Returns null when there's no data.
+     *
+     * Shared by the Today panel, the Vitals HR card, and the HR detail screen so they
+     * all report the same number.
+     */
+    fun restingHeartRate(values: List<Double>, percentile: Double = 0.10): Double? {
+        if (values.isEmpty()) return null
+        val sorted = values.sorted()
+        val idx = ((sorted.size - 1) * percentile).toInt().coerceIn(0, sorted.size - 1)
+        return sorted[idx]
+    }
 }
 
 /**

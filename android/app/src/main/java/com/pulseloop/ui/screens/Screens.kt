@@ -360,7 +360,8 @@ fun VitalsScreen(
                             Text(state.latestHr?.toString() ?: "--", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                             Text(" bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
-                        Text("Range: $min – $max · Avg: $avg bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val restingText = state.restingHr?.let { " · Resting: %.0f".format(it) } ?: ""
+                        Text("Range: $min – $max · Avg: $avg$restingText bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         MetricThresholdTable.forKind(MeasurementKind.HEART_RATE)?.let { th ->
                             Spacer(Modifier.height(8.dp))
                             ThresholdBar(value = state.latestHr?.toDouble(), thresholds = th)
@@ -1157,6 +1158,23 @@ fun VitalDetailScreen(
                             value = state.max?.let { formatStat(it, metric) } ?: "--",
                             unit = state.thresholds?.unitLabel ?: "",
                         )
+                    }
+                }
+                // Resting HR — heart rate only
+                state.resting?.let { resting ->
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            StatTile(
+                                modifier = Modifier.weight(1f),
+                                label = "Resting",
+                                value = formatStat(resting, metric),
+                                unit = state.thresholds?.unitLabel ?: "",
+                            )
+                            Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
 

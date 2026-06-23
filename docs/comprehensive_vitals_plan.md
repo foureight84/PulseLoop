@@ -13,7 +13,7 @@ Two additions to the Vitals experience:
    good → average → concerning scale, with a consistent palette across all metrics.
 2. **Tap-through detail screen** — tapping any panel opens a simplified,
    trend-focused detail view (inspired by the official ring app's detail pages, but
-   deliberately *less* dense). Each detail screen shows the trend over Day/Week/Month,
+   deliberately *less* dense). Each detail screen shows the trend over Today/Week/Month,
    a plain-language read of whether the metric is trending up or down, a color legend,
    a short explainer, and a clear non-medical disclaimer.
 
@@ -226,7 +226,8 @@ device's UTC offset before bucketing (acceptable to defer — note it as a known
 New VM in `ViewModels.kt` (or its own file):
 
 ```kotlin
-enum class Period { DAY, WEEK, MONTH }
+// Display labels: DAY → "Today", WEEK → "Week", MONTH → "Month". Default = DAY.
+enum class Period(val label: String) { DAY("Today"), WEEK("Week"), MONTH("Month") }
 
 class VitalDetailViewModel(
     private val db: PulseLoopDatabase,
@@ -253,7 +254,7 @@ class VitalDetailViewModel(
 ```
 
 Behavior:
-- **Day** → `hourlyAggregates` over the selected day; labels `00,06,12,18,23`.
+- **Today** (`DAY`) → `hourlyAggregates` over the selected day; labels `00,06,12,18,23`.
 - **Week** → `dailyAggregates` over 7 days; labels = weekday short names.
 - **Month** → `dailyAggregates` over ~30 days; labels = day-of-month at intervals.
 - **BP** loads both systolic and diastolic kinds; everything else single-series.
@@ -269,8 +270,11 @@ Behavior:
 New composable in `Screens.kt`. Top-to-bottom, generous spacing, **not** a dense table:
 
 1. **Top bar** — back arrow + metric name (`Scaffold`/`TopAppBar`).
-2. **Period selector** — `Day · Wk · Month` as a segmented control (3 `FilterChip`s or a
-   `SingleChoiceSegmentedButtonRow`). Drives `setPeriod`.
+2. **Period selector** — a segmented control with three tabs in this order:
+   **`Today` · `Week` · `Month`**, with **`Today` selected by default**. Use a
+   `SingleChoiceSegmentedButtonRow` (or 3 `FilterChip`s). Drives `setPeriod`. The tab
+   *labels* are `Today`/`Week`/`Month`; the underlying `Period` enum stays
+   `DAY`/`WEEK`/`MONTH` (map `DAY → "Today"` for display).
 3. **Date navigator** — `‹  <date label>  ›` row; arrows call `prev()/next()`, forward
    disabled at "today/this period".
 4. **Hero trend chart** — one large chart (~180–220.dp tall). Extend `SimpleLineChart`
@@ -348,7 +352,8 @@ migration** is needed.
 - **Part 2**: open Vitals — every panel shows a threshold bar with the marker in the
   correct zone for the current value; colors are consistent across metrics; BP zone reflects
   the worse of sys/dia. Take a measurement and confirm the marker moves.
-- **Part 3**: tap each panel → detail opens; Day/Wk/Month switches the chart and stats;
+- **Part 3**: tap each panel → detail opens defaulting to the **Today** tab;
+  Today/Week/Month switches the chart and stats;
   date arrows move the window (forward disabled at present); trend line reads sensibly;
   legend + disclaimer present; empty windows show the friendly empty state.
 - `./gradlew assembleDebug` clean; install via `adb install -r` and smoke-test on device.

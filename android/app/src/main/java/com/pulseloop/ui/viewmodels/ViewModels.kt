@@ -3,6 +3,7 @@ package com.pulseloop.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulseloop.data.PulseLoopDatabase
+import com.pulseloop.data.dao.Bucket
 import com.pulseloop.data.entity.*
 import com.pulseloop.ring.*
 import com.pulseloop.service.SleepCoach
@@ -10,8 +11,15 @@ import com.pulseloop.service.SleepInsights
 import com.pulseloop.service.SleepScore
 import com.pulseloop.service.SleepScoreResult
 import com.pulseloop.settings.ApiKeyStore
+import com.pulseloop.settings.UnitConverter
+import com.pulseloop.settings.UnitSystem
+import com.pulseloop.ui.components.MetricThresholds
+import com.pulseloop.ui.components.MetricThresholdTable
+import com.pulseloop.util.TimeUtil
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * TodayViewModel — reads Room data for the Today dashboard.
@@ -327,6 +335,272 @@ class CoachViewModel(
                     isThinking = false, error = e.message,
                 ) }
             }
+        }
+    }
+}
+
+// ──────────────────────── Vital Detail ────────────────────────
+
+enum class Period(val label: String) { DAY("Today"), WEEK("Week"), MONTH("Month") }
+
+/**
+ * VitalDetailViewModel — drives a single-metric detail screen with Today/Week/Month
+ * aggregation, trend detection, and stats.
+ */
+class VitalDetailViewModel(
+    private val db: PulseLoopDatabase,
+    private val metric: String,
+    private val apiKeyStore: ApiKeyStore? = null,
+    private val unitSystem: UnitSystem = UnitSystem.METRIC,
+) : ViewModel() {
+
+    enum class Trend { UP, DOWN, FLAT }
+
+    data class DetailState(
+        val period: Period = Period.DAY,
+        val anchor: Long = TimeUtil.startOfTodayLocal(),
+        val points: List<Double> = emptyList(),
+        val secondary: List<Double> = emptyList(),
+        val labels: List<String> = emptyList(),
+        val latest: Double? = null,
+        val min: Double? = null,
+        val avg: Double? = null,
+        val max: Double? = null,
+        val trend: Trend = Trend.FLAT,
+        val thresholds: MetricThresholds? = null,
+        val loading: Boolean = true,
+        val isBP: Boolean = false,
+    )
+
+    private val _state = MutableStateFlow(DetailState())
+    val state: StateFlow<DetailState> = _state.asStateFlow()
+
+    // Derived property for the primary kind(s) of this metric
+    private val primaryKind: MeasurementKind? get() {
+        val t = MetricThresholdTable.forKey(metric) ?: return null
+        return MeasurementKind.entries.firstOrNull { MetricThresholdTable.forKind(it) == t }
+    }
+
+    init {
+        _state.update { it.copy(thresholds = MetricThresholdTable.forKey(metric), isBP = metric == "bp") }
+        viewModelScope.launch { refresh() }
+        // Poll every 5s so live syncs appear
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(5000)
+                try { refresh() } catch (_: Exception) {}
+            }
+        }
+    }
+
+    fun setPeriod(p: Period) {
+        val anchor = when (p) {
+            Period.DAY   -> TimeUtil.startOfTodayLocal()
+            Period.WEEK  -> TimeUtil.startOfDayLocal(System.currentTimeMillis())
+            Period.MONTH -> TimeUtil.startOfDayLocal(System.currentTimeMillis())
+        }
+        _state.update { it.copy(period = p, anchor = anchor) }
+        viewModelScope.launch { refresh() }
+    }
+
+    fun prev() {
+        val st = _state.value
+        val newAnchor = when (st.period) {
+            Period.DAY   -> st.anchor - 86_400_000L
+            Period.WEEK  -> st.anchor - 7 * 86_400_000L
+            Period.MONTH -> {
+                val i = Instant.ofEpochMilli(st.anchor).atZone(ZoneId.systemDefault())
+                i.minusMonths(1).toInstant().toEpochMilli()
+            }
+        }
+        _state.update { it.copy(anchor = newAnchor) }
+        viewModelScope.launch { refresh() }
+    }
+
+    fun next() {
+        val st = _state.value
+        val newAnchor = when (st.period) {
+            Period.DAY   -> st.anchor + 86_400_000L
+            Period.WEEK  -> st.anchor + 7 * 86_400_000L
+            Period.MONTH -> {
+                val i = Instant.ofEpochMilli(st.anchor).atZone(ZoneId.systemDefault())
+                i.plusMonths(1).toInstant().toEpochMilli()
+            }
+        }
+        // Disallow going past today
+        val todayStart = TimeUtil.startOfTodayLocal()
+        val maxAnchor = when (st.period) {
+            Period.DAY -> todayStart
+            Period.WEEK -> todayStart
+            Period.MONTH -> {
+                val i = Instant.ofEpochMilli(todayStart).atZone(ZoneId.systemDefault())
+                i.withDayOfMonth(1).toInstant().toEpochMilli()
+            }
+        }
+        if (newAnchor > maxAnchor) return
+        _state.update { it.copy(anchor = newAnchor) }
+        viewModelScope.launch { refresh() }
+    }
+
+    /** Whether forward navigation is allowed (disabled at present period). */
+    fun canGoForward(): Boolean {
+        val st = _state.value
+        val todayStart = TimeUtil.startOfTodayLocal()
+        return when (st.period) {
+            Period.DAY   -> st.anchor < todayStart
+            Period.WEEK  -> st.anchor < todayStart
+            Period.MONTH -> {
+                val i = Instant.ofEpochMilli(todayStart).atZone(ZoneId.systemDefault())
+                st.anchor < i.withDayOfMonth(1).toInstant().toEpochMilli()
+            }
+        }
+    }
+
+    private suspend fun refresh() {
+        val st = _state.value
+        val anchor = st.anchor
+        val period = st.period
+        val tzOffsetMs = ZoneId.systemDefault().rules.getOffset(Instant.now()).totalSeconds * 1000L
+
+        val windowEnd = when (period) {
+            Period.DAY   -> anchor + 86_400_000L
+            Period.WEEK  -> anchor + 7 * 86_400_000L
+            Period.MONTH -> {
+                val i = Instant.ofEpochMilli(anchor).atZone(ZoneId.systemDefault())
+                i.plusMonths(1).toInstant().toEpochMilli()
+            }
+        }
+
+        // Previous window for trend
+        val prevAnchor = when (period) {
+            Period.DAY   -> anchor - 86_400_000L
+            Period.WEEK  -> anchor - 7 * 86_400_000L
+            Period.MONTH -> {
+                val i = Instant.ofEpochMilli(anchor).atZone(ZoneId.systemDefault())
+                i.minusMonths(1).toInstant().toEpochMilli()
+            }
+        }
+
+        val dao = db.measurementDao()
+
+        if (metric == "bp") {
+            val sysBuckets = if (period == Period.DAY)
+                dao.hourlyAggregates(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name, anchor, windowEnd)
+            else
+                dao.dailyAggregates(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name, anchor, windowEnd, tzOffsetMs)
+            val diaBuckets = if (period == Period.DAY)
+                dao.hourlyAggregates(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name, anchor, windowEnd)
+            else
+                dao.dailyAggregates(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name, anchor, windowEnd, tzOffsetMs)
+
+            val points = sysBuckets.map { it.avgValue }
+            val secondary = diaBuckets.map { it.avgValue }
+            val allValues = points + secondary
+            val labels = buildLabels(sysBuckets.map { it.bucket }, period)
+
+            // Trend from previous window
+            val prevSys = if (period == Period.DAY)
+                dao.hourlyAggregates(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name, prevAnchor, anchor)
+            else
+                dao.dailyAggregates(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name, prevAnchor, anchor, tzOffsetMs)
+            val prevAvg = if (prevSys.isNotEmpty()) prevSys.map { it.avgValue }.average() else null
+            val thisAvg = if (points.isNotEmpty()) points.average() else null
+            val trend = computeTrend(thisAvg, prevAvg, if (allValues.isNotEmpty()) allValues.max() - allValues.min() else 1.0)
+
+            val latestSys = dao.latest(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC.name)
+            val latestDia = dao.latest(MeasurementKind.BLOOD_PRESSURE_DIASTOLIC.name)
+
+            _state.update { it.copy(
+                points = points, secondary = secondary, labels = labels,
+                latest = latestSys,
+                min = allValues.minOrNull(), avg = thisAvg, max = allValues.maxOrNull(),
+                trend = trend, loading = false,
+            ) }
+        } else {
+            val kind = primaryKind ?: return
+            val kindName = kind.name
+            val buckets = if (period == Period.DAY)
+                dao.hourlyAggregates(kindName, anchor, windowEnd)
+            else
+                dao.dailyAggregates(kindName, anchor, windowEnd, tzOffsetMs)
+
+            val rawPoints = buckets.map { it.avgValue }
+            val glucoseOffset = apiKeyStore?.glucoseOffsetMgdl ?: 0.0
+
+            val points = when (kind) {
+                MeasurementKind.BLOOD_SUGAR -> rawPoints.map { it + glucoseOffset }
+                MeasurementKind.TEMPERATURE -> rawPoints.map { UnitConverter.temperature(it, unitSystem) }
+                else -> rawPoints
+            }
+
+            val labels = buildLabels(buckets.map { it.bucket }, period)
+
+            // Trend from previous window
+            val prevBuckets = if (period == Period.DAY)
+                dao.hourlyAggregates(kindName, prevAnchor, anchor)
+            else
+                dao.dailyAggregates(kindName, prevAnchor, anchor, tzOffsetMs)
+            val prevAvg = if (prevBuckets.isNotEmpty()) {
+                val raw = prevBuckets.map { it.avgValue }.average()
+                when (kind) {
+                    MeasurementKind.BLOOD_SUGAR -> raw + glucoseOffset
+                    MeasurementKind.TEMPERATURE -> UnitConverter.temperature(raw, unitSystem)
+                    else -> raw
+                }
+            } else null
+            val thisAvg = if (points.isNotEmpty()) points.average() else null
+            val range = if (points.isNotEmpty()) points.max() - points.min() else 1.0
+            val trend = computeTrend(thisAvg, prevAvg, range)
+
+            val rawLatest = dao.latest(kindName)
+            val latest = when (kind) {
+                MeasurementKind.BLOOD_SUGAR -> rawLatest?.plus(glucoseOffset)
+                MeasurementKind.TEMPERATURE -> rawLatest?.let { UnitConverter.temperature(it, unitSystem) }
+                else -> rawLatest
+            }
+
+            _state.update { it.copy(
+                points = points, secondary = emptyList(), labels = labels,
+                latest = latest,
+                min = points.minOrNull(), avg = thisAvg, max = points.maxOrNull(),
+                trend = trend, loading = false,
+            ) }
+        }
+    }
+
+    private fun buildLabels(buckets: List<Long>, period: Period): List<String> {
+        if (buckets.isEmpty()) return emptyList()
+        val zone = ZoneId.systemDefault()
+        return when (period) {
+            Period.DAY -> {
+                // Show hours: 00, 06, 12, 18, 23
+                buckets.map { bucket ->
+                    val hour = Instant.ofEpochMilli(bucket).atZone(zone).hour
+                    "%02d".format(hour)
+                }
+            }
+            Period.WEEK -> {
+                buckets.map { bucket ->
+                    val day = Instant.ofEpochMilli(bucket).atZone(zone).dayOfWeek
+                    day.name.take(3)
+                }
+            }
+            Period.MONTH -> {
+                buckets.map { bucket ->
+                    Instant.ofEpochMilli(bucket).atZone(zone).dayOfMonth.toString()
+                }
+            }
+        }
+    }
+
+    private fun computeTrend(thisAvg: Double?, prevAvg: Double?, range: Double): Trend {
+        if (thisAvg == null || prevAvg == null) return Trend.FLAT
+        val delta = thisAvg - prevAvg
+        val threshold = range * 0.02
+        return when {
+            delta > threshold  -> Trend.UP
+            delta < -threshold -> Trend.DOWN
+            else               -> Trend.FLAT
         }
     }
 }

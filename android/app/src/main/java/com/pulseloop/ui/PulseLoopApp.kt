@@ -187,12 +187,21 @@ fun PulseLoopApp() {
                 modifier = Modifier.padding(padding),
             ) {
                 composable("today") { TodayScreen(navController, todayVM, coordinator) }
-                composable("vitals") { VitalsScreen(viewModel = vitalsVM, coordinator = coordinator) }
+                composable("vitals") { VitalsScreen(navController = navController, viewModel = vitalsVM, coordinator = coordinator) }
                 composable("sleep") { SleepScreen(navController = navController, viewModel = sleepVM) }
                 composable("activity") { ActivityScreen(navController = navController, viewModel = activityVM) }
                 composable("coach") { CoachScreen(navController = navController, viewModel = coachVM) }
                 composable("settings") { SettingsScreen(navController, bleClient, coordinator) }
                 composable("debug") { DebugScreen(onBack = { navController.popBackStack() }) }
+                composable("vitals/{metric}") { backStackEntry ->
+                    val metric = backStackEntry.arguments?.getString("metric") ?: return@composable
+                    VitalDetailScreen(
+                        metric = metric,
+                        onBack = { navController.popBackStack() },
+                        db = db,
+                        apiKeyStore = apiKeyStore,
+                    )
+                }
                 composable("onboarding") { OnboardingScreen(onComplete = { navController.navigate("pairing") }) }
                 composable("record") {
                     val workoutState = liveWorkout.state.collectAsState().value

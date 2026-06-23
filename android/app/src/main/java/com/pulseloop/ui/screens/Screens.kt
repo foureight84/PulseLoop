@@ -1,8 +1,10 @@
 package com.pulseloop.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,10 +28,17 @@ import com.pulseloop.service.SleepFormat
 import com.pulseloop.service.SleepInsights
 import com.pulseloop.service.SleepScore
 import com.pulseloop.service.SleepScoreResult
+import com.pulseloop.ui.components.LegendDot
+import com.pulseloop.ui.components.MetricThresholdTable
+import com.pulseloop.ui.components.MetricThresholds
 import com.pulseloop.ui.components.MetricTile
 import com.pulseloop.ui.components.SimpleDualLineChart
 import com.pulseloop.ui.components.SimpleLineChart
+import com.pulseloop.ui.components.ThresholdBar
+import com.pulseloop.ui.components.TrendChart
+import com.pulseloop.ui.components.bpZone
 import com.pulseloop.ui.viewmodels.*
+import com.pulseloop.ring.MeasurementKind
 import com.pulseloop.settings.ApiKeyStore
 import com.pulseloop.settings.UnitConverter
 import com.pulseloop.settings.UnitSystem
@@ -271,6 +280,7 @@ fun TodayScreen(
  */
 @Composable
 fun VitalsScreen(
+    navController: androidx.navigation.NavController? = null,
     viewModel: VitalsViewModel? = null,
     coordinator: com.pulseloop.service.RingSyncCoordinator? = null,
 ) {
@@ -338,7 +348,7 @@ fun VitalsScreen(
 
         // Heart Rate
         item {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/hr") }) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Heart Rate", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
@@ -351,6 +361,10 @@ fun VitalsScreen(
                             Text(" bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
                         Text("Range: $min – $max · Avg: $avg bpm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        MetricThresholdTable.forKind(MeasurementKind.HEART_RATE)?.let { th ->
+                            Spacer(Modifier.height(8.dp))
+                            ThresholdBar(value = state.latestHr?.toDouble(), thresholds = th)
+                        }
                         Spacer(Modifier.height(12.dp))
                         SimpleLineChart(points = state.hrSamples, color = androidx.compose.ui.graphics.Color(0xFFE53935))
                     } else {
@@ -366,7 +380,7 @@ fun VitalsScreen(
 
         // SpO2
         item {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/spo2") }) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Blood Oxygen", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
@@ -379,6 +393,10 @@ fun VitalsScreen(
                             Text(" %", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
                         Text("Range: $min – $max% · Avg: $avg%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        MetricThresholdTable.forKind(MeasurementKind.SPO2)?.let { th ->
+                            Spacer(Modifier.height(8.dp))
+                            ThresholdBar(value = state.latestSpo2?.toDouble(), thresholds = th)
+                        }
                         Spacer(Modifier.height(12.dp))
                         SimpleLineChart(points = state.spo2Samples, color = androidx.compose.ui.graphics.Color(0xFF1E88E5))
                     } else {
@@ -395,7 +413,7 @@ fun VitalsScreen(
         // Stress (capability-gated)
         if (state.supportsStress) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/stress") }) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Stress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -416,6 +434,10 @@ fun VitalsScreen(
                                 Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text("  $latest / 100", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
+                            MetricThresholdTable.forKind(MeasurementKind.STRESS)?.let { th ->
+                                Spacer(Modifier.height(8.dp))
+                                ThresholdBar(value = state.latestStress, thresholds = th)
+                            }
                             Spacer(Modifier.height(12.dp))
                             SimpleLineChart(points = state.stressSamples, color = androidx.compose.ui.graphics.Color(0xFF8E24AA))
                         } else {
@@ -429,7 +451,7 @@ fun VitalsScreen(
         // Fatigue (capability-gated) — TYPE_FATIGUE (byte[5]) from the combined measurement
         if (state.supportsFatigue) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/fatigue") }) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Fatigue", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -450,6 +472,10 @@ fun VitalsScreen(
                                 Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text("  $latest / 100", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                             }
+                            MetricThresholdTable.forKind(MeasurementKind.FATIGUE)?.let { th ->
+                                Spacer(Modifier.height(8.dp))
+                                ThresholdBar(value = state.latestFatigue, thresholds = th)
+                            }
                             Spacer(Modifier.height(12.dp))
                             SimpleLineChart(points = state.fatigueSamples, color = androidx.compose.ui.graphics.Color(0xFFFB8C00))
                         } else {
@@ -463,7 +489,7 @@ fun VitalsScreen(
         // HRV (capability-gated)
         if (state.supportsHrv) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/hrv") }) {
                     Column(Modifier.padding(16.dp)) {
                         Text("HRV", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -472,6 +498,10 @@ fun VitalsScreen(
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(String.format("%.0f", hrvVal), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(" ms", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            MetricThresholdTable.forKind(MeasurementKind.HRV)?.let { th ->
+                                Spacer(Modifier.height(8.dp))
+                                ThresholdBar(value = state.latestHrv, thresholds = th)
                             }
                             Spacer(Modifier.height(12.dp))
                             SimpleLineChart(points = state.hrvSamples, color = androidx.compose.ui.graphics.Color(0xFF43A047))
@@ -512,7 +542,7 @@ fun VitalsScreen(
         // Blood Pressure (capability-gated)
         if (state.supportsBP) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/bp") }) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Blood Pressure", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -533,6 +563,15 @@ fun VitalsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                // BP threshold bar: position at systolic, zone from worse of sys/dia
+                                MetricThresholdTable.forKind(MeasurementKind.BLOOD_PRESSURE_SYSTOLIC)?.let { th ->
+                                    Spacer(Modifier.height(8.dp))
+                                    ThresholdBar(
+                                        value = state.bpSystolic?.toDouble(),
+                                        thresholds = th,
+                                        overrideZone = bpZone(state.bpSystolic?.toDouble(), state.bpDiastolic?.toDouble()),
+                                    )
+                                }
                                 Spacer(Modifier.height(12.dp))
                                 SimpleDualLineChart(
                                     seriesA = state.bpSysSamples,
@@ -560,7 +599,7 @@ fun VitalsScreen(
         // Blood Sugar (capability-gated)
         if (state.supportsGlucose) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().clickable { navController?.navigate("vitals/glucose") }) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Blood Sugar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -578,6 +617,10 @@ fun VitalsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                MetricThresholdTable.forKind(MeasurementKind.BLOOD_SUGAR)?.let { th ->
+                                    Spacer(Modifier.height(8.dp))
+                                    ThresholdBar(value = state.bloodSugar, thresholds = th)
+                                }
                                 Spacer(Modifier.height(12.dp))
                                 SimpleLineChart(points = state.glucoseSamples, color = androidx.compose.ui.graphics.Color(0xFF00897B))
                             }
@@ -712,16 +755,7 @@ fun SleepScreen(
     }
 }
 
-/** Small color swatch + label, used as an inline chart legend (e.g. Systolic / Diastolic). */
-@Composable
-private fun LegendDot(label: String, color: androidx.compose.ui.graphics.Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).background(color, CircleShape))
-        Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
+/** Small label used as an inline sleep stage badge. */
 @Composable
 private fun StagePill(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -947,4 +981,335 @@ fun CoachScreen(
 private fun formatNumber(value: Int?): String {
     if (value == null) return "--"
     return "%,d".format(value)
+}
+
+// ──────────────────────── Vital Detail Screen ────────────────────────
+
+/**
+ * Detail screen for a single health metric — tapped from a Vitals panel.
+ * Shows trend chart over Today/Week/Month, zone bar, stats, explainer,
+ * and a non-medical disclaimer.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VitalDetailScreen(
+    metric: String,
+    onBack: () -> Unit,
+    db: com.pulseloop.data.PulseLoopDatabase,
+    apiKeyStore: com.pulseloop.settings.ApiKeyStore? = null,
+) {
+    val context = LocalContext.current
+    val units = apiKeyStore?.resolvedUnitSystem ?: com.pulseloop.settings.UnitSystem.METRIC
+    val vm = remember { VitalDetailViewModel(db, metric, apiKeyStore, units) }
+    val state by vm.state.collectAsState()
+
+    val title = metricDisplayName(metric)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, "Back")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        if (state.loading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (state.points.isEmpty()) {
+            // Empty state
+            Column(
+                Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    "No ${title.lowercase()} data for this period",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Sync your ring or take a measurement",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                // 1. Period selector — Today · Week · Month
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Period.entries.forEach { p ->
+                            FilterChip(
+                                selected = state.period == p,
+                                onClick = { vm.setPeriod(p) },
+                                label = { Text(p.label) },
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
+                }
+
+                // 2. Date navigator
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { vm.prev() }) {
+                            Icon(Icons.Filled.ChevronLeft, "Previous")
+                        }
+                        Text(
+                            text = dateLabel(state.anchor, state.period),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        IconButton(
+                            onClick = { vm.next() },
+                            enabled = vm.canGoForward(),
+                        ) {
+                            Icon(Icons.Filled.ChevronRight, "Next")
+                        }
+                    }
+                }
+
+                // 3. Trend chart
+                item {
+                    TrendChart(
+                        points = state.points,
+                        labels = state.labels,
+                        color = state.thresholds?.zones?.firstOrNull()?.color
+                            ?: MaterialTheme.colorScheme.primary,
+                        secondary = state.secondary,
+                        colorSecondary = androidx.compose.ui.graphics.Color(0xFFB39DDB),
+                        legendPrimary = if (state.isBP) "Systolic" else null,
+                        legendSecondary = if (state.isBP) "Diastolic" else null,
+                    )
+                }
+
+                // 4. Trend read
+                item {
+                    val (arrow, trendText) = trendCopy(state.trend, state.thresholds?.higherIsBetter ?: false)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = arrow,
+                            style = MaterialTheme.typography.headlineSmall,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = trendText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+
+                // 5. Stat tiles — Latest · Avg · Min · Max
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        StatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Latest",
+                            value = state.latest?.let { formatStat(it, metric) } ?: "--",
+                            unit = state.thresholds?.unitLabel ?: "",
+                        )
+                        StatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Avg",
+                            value = state.avg?.let { formatStat(it, metric) } ?: "--",
+                            unit = state.thresholds?.unitLabel ?: "",
+                        )
+                    }
+                }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        StatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Min",
+                            value = state.min?.let { formatStat(it, metric) } ?: "--",
+                            unit = state.thresholds?.unitLabel ?: "",
+                        )
+                        StatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Max",
+                            value = state.max?.let { formatStat(it, metric) } ?: "--",
+                            unit = state.thresholds?.unitLabel ?: "",
+                        )
+                    }
+                }
+
+                // 6. Threshold bar + legend
+                state.thresholds?.let { th ->
+                    item {
+                        val barValue = if (state.isBP) state.latest else (state.latest ?: state.avg)
+                        ThresholdBar(
+                            value = barValue,
+                            thresholds = th,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            th.zones.forEach { zone ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier
+                                            .size(10.dp)
+                                            .background(zone.color, CircleShape),
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        zone.label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 7. Explainer
+                item {
+                    Text(
+                        text = metricExplainer(metric),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // 8. Disclaimer
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                    ) {
+                        Text(
+                            text = DISCLAIMER_TEXT,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                item { Spacer(Modifier.height(16.dp)) }
+            }
+        }
+    }
+}
+
+private const val DISCLAIMER_TEXT =
+    "For reference only — not a substitute for medical devices, and not a medical diagnosis. " +
+    "Wearable readings can vary; talk to a healthcare professional about any health concerns."
+
+private fun metricDisplayName(metric: String): String = when (metric) {
+    "hr"      -> "Heart Rate"
+    "spo2"    -> "Blood Oxygen"
+    "stress"  -> "Stress"
+    "fatigue" -> "Fatigue"
+    "hrv"     -> "HRV"
+    "temp"    -> "Skin Temperature"
+    "bp"      -> "Blood Pressure"
+    "glucose" -> "Blood Sugar"
+    else      -> metric
+}
+
+private fun metricExplainer(metric: String): String = when (metric) {
+    "hr" -> "Resting heart rate reflects your cardiovascular fitness. Lower resting HR generally indicates better fitness, though individual baselines vary."
+    "spo2" -> "Blood oxygen saturation (SpO₂) indicates how well your body absorbs oxygen. Most healthy people have levels above 95%."
+    "stress" -> "Stress estimation is based on heart rate variability patterns. Higher values suggest more physiological stress; lower values reflect relaxation."
+    "fatigue" -> "Fatigue index estimates your body's recovery state. Higher values suggest accumulated fatigue; lower values indicate you're well-rested."
+    "hrv" -> "Heart rate variability (HRV) reflects autonomic nervous system balance. Higher HRV is typically associated with better recovery and resilience. HRV is highly personal — compare against your own baseline."
+    "temp" -> "Skin temperature is not body temperature. It can reflect environmental exposure and circadian rhythms. Informational only."
+    "bp" -> "Blood pressure readings consist of systolic (pressure during heartbeats) and diastolic (pressure between beats). Ranges are general wellness references, not diagnostic."
+    "glucose" -> "Blood sugar levels fluctuate throughout the day. Ranges differ for fasting vs. post-meal measurements. Treat ranges as rough guides only."
+    else -> ""
+}
+
+private fun dateLabel(anchor: Long, period: Period): String {
+    val zone = java.time.ZoneId.systemDefault()
+    val dt = java.time.Instant.ofEpochMilli(anchor).atZone(zone)
+    return when (period) {
+        Period.DAY -> dt.toLocalDate().toString()
+        Period.WEEK -> {
+            val end = dt.plusDays(6)
+            "${dt.toLocalDate()} – ${end.toLocalDate()}"
+        }
+        Period.MONTH -> {
+            "${dt.month.name.take(3)} ${dt.year}"
+        }
+    }
+}
+
+private fun formatStat(value: Double, metric: String): String = when (metric) {
+    "temp" -> "%.1f".format(value)
+    "glucose" -> "%.1f".format(value)
+    "hrv" -> "%.0f".format(value)
+    else -> "%.0f".format(value)
+}
+
+private fun trendCopy(trend: VitalDetailViewModel.Trend, higherIsBetter: Boolean): Pair<String, String> {
+    val arrow = when (trend) {
+        VitalDetailViewModel.Trend.UP   -> "↑"
+        VitalDetailViewModel.Trend.DOWN -> "↓"
+        VitalDetailViewModel.Trend.FLAT -> "→"
+    }
+    val text = when (trend) {
+        VitalDetailViewModel.Trend.FLAT -> "Holding steady."
+        VitalDetailViewModel.Trend.DOWN ->
+            if (higherIsBetter) "Trending down vs the previous period."
+            else "Trending down — generally a positive direction."
+        VitalDetailViewModel.Trend.UP ->
+            if (higherIsBetter) "Trending up — generally a positive direction."
+            else "Trending up vs the previous period."
+    }
+    return Pair(arrow, text)
+}
+
+@Composable
+private fun StatTile(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    unit: String,
+) {
+    Card(modifier = modifier) {
+        Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "$label $unit",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

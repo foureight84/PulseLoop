@@ -4,6 +4,14 @@ import androidx.room.*
 import com.pulseloop.data.entity.*
 import kotlinx.coroutines.flow.Flow
 
+/** Aggregated bucket returned by hourlyAggregates / dailyAggregates queries. */
+data class Bucket(
+    val bucket: Long,
+    val avgValue: Double,
+    val minValue: Double,
+    val maxValue: Double,
+)
+
 @Dao
 interface DeviceDao {
     @Query("SELECT * FROM devices ORDER BY updatedAt DESC LIMIT 1")
@@ -38,6 +46,27 @@ interface MeasurementDao {
 
     @Query("DELETE FROM measurements")
     suspend fun clear()
+
+    /** Average per LOCAL-day bucket — pass tzOffsetMs = ZoneId.systemDefault() offset for now.
+     *  Week = 7 buckets, Month = ~30 buckets. */
+    @Query("""
+        SELECT (CAST((timestamp + :tzOffsetMs) / 86400000 AS INTEGER) * 86400000) - :tzOffsetMs AS bucket,
+               AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue
+        FROM measurements
+        WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end
+        GROUP BY bucket ORDER BY bucket ASC
+    """)
+    suspend fun dailyAggregates(kind: String, start: Long, end: Long, tzOffsetMs: Long): List<Bucket>
+
+    /** Average per UTC-hour bucket — used for the Today view. */
+    @Query("""
+        SELECT CAST(timestamp / 3600000 AS INTEGER) * 3600000 AS bucket,
+               AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue
+        FROM measurements
+        WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end
+        GROUP BY bucket ORDER BY bucket ASC
+    """)
+    suspend fun hourlyAggregates(kind: String, start: Long, end: Long): List<Bucket>
 }
 
 @Dao

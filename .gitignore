@@ -43,3 +43,7 @@ fastlane/test_output
 *~
 graphify-out/
 .firecrawl/
+
+# Agent skill tooling
+.agents/
+skills-lock.json

@@ -158,6 +158,9 @@ The `0x20` response is a bitfield describing which features the device supports.
 ### 4. `0x02` is User Profile, Not Activity Query
 
 Setting user info (age, height, weight, gender) is `0x02`, not requesting activity.
+This profile feeds the ring's **blood sugar** (profile-derived estimate) and **calorie**
+algorithms only. **Blood pressure is a direct PPG sensor reading — it does NOT depend
+on user profile.**
 
 ### 5. Blood Pressure Source
 

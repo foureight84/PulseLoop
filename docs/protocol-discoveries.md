@@ -28,6 +28,10 @@ It comes through the custom 56FF protocol:
 - **`0x23`** (`CMD_TOGGLE_BLOOD_PRESSURE`) triggers a combined measurement
 - **`0x24`** (`CMD_RECEIVED_SENSOR_DATA`) returns ALL of: HR (byte[1]), systolic (byte[2]), diastolic (byte[3]), SpO₂ (byte[4]), stress (byte[5])
 
+Blood pressure is a **direct sensor reading** — it does NOT require user profile
+(sex/age/height/weight). This is in contrast to blood sugar, which is
+profile-derived (see Blood Sugar section below).
+
 The official app **hides blood pressure from the UI**, but the ring does send it.
 Gadgetbridge's open-source implementation successfully extracts and displays both
 systolic and diastolic values.

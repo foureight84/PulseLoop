@@ -68,8 +68,8 @@ Multiple hardware platforms span from $7 commodity rings to $350 premium devices
 - SpO₂ (%) — spot + history
 - Steps / distance / calories
 - Sleep stages: awake, light, deep (no REM)
-- Blood pressure: systolic + diastolic (via `0x23`/`0x24` combined measurement)
-- Blood sugar (profile-derived estimate, not real glucometer)
+- Blood pressure: systolic + diastolic (via `0x23`/`0x24` combined measurement) — **direct sensor reading, no user profile required**
+- Blood sugar (profile-derived estimate, not real glucometer) — **requires user profile** (sex/age/height/weight via `0x02` `CMD_SET_USER_INFO`); changing the profile changes the value
 - Stress (0–100)
 - Fatigue (0–100)
 - HRV (ms)
@@ -197,9 +197,12 @@ The VC30F is the PPG bio-sensor used in R10 and R12:
 | **Body temperature** | ✅ | ✅ | 🧪 | 🧪 |
 | **Battery level** | ✅ | ✅ | 🧪 | 🧪 |
 | **Find device** | ✅ | ✅ | 🧪 | 🧪 |
+| **Blood pressure** | ❌ | ❌ | ❌ | ❌ |
+| **Blood sugar** | ❌ | ❌ | ❌ | ❌ |
 
 ¹ R02, R03, R06, R07, R09 + Yawell R05, R10, R11, H59
 ² Colmi family has no on-demand SpO₂ reading; SpO₂ is all-day background only
+³ Colmi has no blood pressure or blood sugar support. Its `userPreferences` (gender/age/height/weight) is for general health metric tuning only — not for BP/BS computation.
 
 ### What the Colmi family CAN do (that 56ff cannot)
 

@@ -246,8 +246,12 @@ Value:  0x24 HR   systolic  diastolic  SpO2%   fatigue  stress  bloodSugar   HRV
 Values > 0 indicate valid readings. Only store if value > 0.
 
 > **This is the blood pressure AND blood sugar source.** The official app hides BP from
-> the UI but the ring sends it. Blood sugar (byte[7]) is a profile-derived estimate
-> computed on the ring, not a real glucometer reading — `mg/dL = (byte7 / 10) × 18.016`.
+> the UI but the ring sends it.
+>
+> **Blood pressure (bytes[2]-[3]) is a direct sensor reading** — no user profile required.
+> **Blood sugar (byte[7]) is a profile-derived estimate** computed from the user profile
+> (sex/age/height/weight sent via `0x02` `CMD_SET_USER_INFO`), not a real glucometer
+> reading — `mg/dL = (byte7 / 10) × 18.016`. Changing the profile changes the value.
 
 **Status:** ✅ Implemented. `RingDecoder.decodeCombinedSensor` decodes all 8 fields
 (RingDecoder.kt:210-249). Fatigue (byte[5]) and stress (byte[6]) are distinct metrics.

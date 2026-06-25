@@ -191,7 +191,8 @@ shows mg/dL via `× 18.016`. So **mg/dL = (byte7 / 10) × 18.016** — e.g. `51 
 The `com.google.blood_glucose` references in the APK are only for Google Health Connect export.
 Blood sugar here is **not** a true glucometer reading — the ring computes it from the user
 **profile** (sex/age/height/weight sent via `setUserInfo` 0x02; changing the profile changes the
-value), gated by the `0x20` capability bit `FUNCTION_HAS_BLOODSUGAR`. The official app offers an
+value). **Blood pressure, in contrast, is a direct PPG sensor reading and does NOT depend on
+user profile.** The ring is gated by the `0x20` capability bit `FUNCTION_HAS_BLOODSUGAR`. The official app offers an
 app-side **"Sugar Offset"** calibration (no BLE command — the offset is applied on the phone),
 which this app mirrors via a settings field.
 

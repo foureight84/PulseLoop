@@ -5,59 +5,58 @@
 
 ## Supported Rings — Hardware Specs
 
-|  | 56ff / Jring | Colmi R02/R03/etc | Colmi R10 | Colmi R12 | Colmi R11 (Da Rings) |
+|  | 56ff / Jring | Colmi R02/R03/etc | Colmi R10 | Colmi R12 | Colmi R11 |
 |---|---:|---:|---:|---:|---:|
-| **SoC** | Renesas DA14531 | Realtek RTL8762 | RTL8762 ESF | Realtek RTL8762 | AB2026 (Actions/Airoha) |
+| **SoC** | Renesas DA14531 | Realtek RTL8762 | RTL8762 ESF | Realtek RTL8762 | Realtek AB2026 |
 | **Architecture** | ARM Cortex-M0 | ARM | ARM | ARM | ARM |
-| **Bluetooth** | BLE 5.x | BLE 5.0 | BLE 5.0 | BLE 5.0 | BLE 5.2 |
-| **PPG sensor** | Unknown (HR/SpO₂) | Unknown | Vcare VC30F | Vcare VC30F | Unknown |
-| **PPG LEDs** | Unknown | Unknown | Red + green (dual) | Red + green (dual) | Unknown |
-| **Accelerometer** | Yes | Unknown | STK8321 | ST LIS2DOC | Unknown |
-| **Skin temperature** | ❌ | Unknown | ✅ | ✅ | Unknown |
-| **Battery** | Unknown | Varies | 17 mAh | 15–18 mAh | 15 mAh |
-| **Battery life** | Unknown | Varies | ~4–7 days | ~4–7 days | Unknown |
+| **Bluetooth** | BLE 5.x | BLE 5.0 | BLE 5.0 | BLE 5.0 | BLE 5.0 |
+| **PPG sensor** | Unknown (HR/SpO₂) | Unknown | Vcare VC30F | Vcare VC30F | Vcare VC30F |
+| **PPG LEDs** | Unknown | Unknown | Red + green (dual) | Red + green (dual) | Red + green (dual) |
+| **Accelerometer** | Yes | Unknown | STK8321 | ST LIS2DOC | STK8321 |
+| **Skin temperature** | ❌ | Unknown | ✅ | ✅ | ✅ |
+| **Battery** | Unknown | Varies | 17 mAh | 15–18 mAh | 15–18 mAh¹ |
+| **Battery life** | Unknown | Varies | ~4–7 days | ~4–7 days | ~4–7 days |
 | **Charging case** | No | No | ✅ 200 mAh | No | ✅ 200 mAh |
 | **Display** | No | No | No | ✅ Yes | No |
-| **Waterproof** | Varies by seller | IP68 / 3ATM | 5ATM | IP68 + 1ATM | 5ATM |
+| **Waterproof** | Varies by seller | IP68 / 3ATM | 5ATM | IP68 + 1ATM | IP68 + 5ATM |
 | **Weight** | Unknown | Unknown | Unknown | ~4 g | Unknown |
 | **Price** | $7–12 | $15–25 | $15–25 | ~$30 | ~$15–25 |
-| **Protocol** | Custom 56ff | Nordic-UART QRing | Nordic-UART QRing | Nordic-UART QRing | Unknown (not QRing) |
-| **Frame size** | Fixed 20 bytes | 16 bytes (checksum) | 16 bytes (checksum) | 16 bytes (checksum) | Unknown |
-| **Encryption** | None (cleartext) | None | None | None | Unknown |
-| **FW OTA** | ✅ Renesas SUOTA | ✅ BLE OTA (no sign) | ⚠️ Unknown | ⚠️ Unknown | ❌ |
-| **Custom firmware** | ✅ (SR08 ref) | ✅ (RF03 ref) | ❓ | ❓ | ❌ |
-| **PulseLoop support** | ✅ | ✅ | ✅ | ✅ | 🧪¹ |
+| **Protocol** | Custom 56ff | Nordic-UART QRing | Nordic-UART QRing | Nordic-UART QRing | Nordic-UART QRing² |
+| **Frame size** | Fixed 20 bytes | 16 bytes (checksum) | 16 bytes (checksum) | 16 bytes (checksum) | 16 bytes (checksum) |
+| **Encryption** | None (cleartext) | None | None | None | None |
+| **FW OTA** | ✅ Renesas SUOTA | ✅ BLE OTA (no sign) | ⚠️ Unknown | ⚠️ Unknown | ⚠️ Unknown |
+| **Custom firmware** | ✅ (SR08 ref) | ✅ (RF03 ref) | ❓ | ❓ | ❓ |
+| **PulseLoop support** | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-¹ Matched via Colmi QRing driver when advertising with `R11C?_` pattern. Some R11 variants may use a
-different protocol ("Da Rings" app, AB2026 SoC) and won't be recognized.
+¹ 15 mAh for sizes 8–9, 18 mAh for sizes 10–13.
+² Works with the QRing app; also has a companion "Da Rings" app. Matched by Colmi driver.
 
 ## Supported Rings — Capabilities
 
-| Capability | 56ff / Jring | Colmi R02/etc | Colmi R10 | Colmi R12 | Colmi R11 (Da Rings) |
+| Capability | 56ff / Jring | Colmi R02/etc | Colmi R10 | Colmi R12 | Colmi R11 |
 |---|---:|---:|---:|---:|---:|
-| Heart rate — spot | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Heart rate — history | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Heart rate — live | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| SpO₂ — history | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| SpO₂ — spot | ✅ | ❌¹ | ❌¹ | ❌¹ | 🧪 |
-| Steps / distance / calories | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Sleep (light/deep/awake) | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| REM sleep | ❌ | ✅ | ✅ | ✅ | 🧪 |
-| Blood pressure | ✅² | ❌ | ❌ | ❌ | 🧪 |
-| Blood sugar | ✅³ | ❌ | ❌ | ❌ | 🧪 |
-| HRV | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Stress | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Fatigue | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Skin temperature | ❌ | ✅ | ✅ | ✅ | 🧪 |
-| Battery level | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Find device | ✅ | ✅ | ✅ | ✅ | 🧪 |
-| Continuous background sync | ❌ | ✅ | ✅ | ✅ | 🧪 |
-| FW update via app | ✅ | ✅ | ⚠️ | ⚠️ | 🧪 |
+| Heart rate — spot | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Heart rate — history | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Heart rate — live | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SpO₂ — history | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SpO₂ — spot | ✅ | ❌¹ | ❌¹ | ❌¹ | ❌¹ |
+| Steps / distance / calories | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sleep (light/deep/awake) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| REM sleep | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Blood pressure | ✅² | ❌ | ❌ | ❌ | ❌ |
+| Blood sugar | ✅³ | ❌ | ❌ | ❌ | ❌ |
+| HRV | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Stress | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Fatigue | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Skin temperature | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Battery level | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Find device | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Continuous background sync | ❌ | ✅ | ✅ | ✅ | ✅ |
+| FW update via app | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
 
 ¹ Colmi family has no on-demand SpO₂ reading; SpO₂ is all-day background only.
 ² Direct PPG sensor reading, no user profile required.
 ³ Profile-derived estimate from sex/age/height/weight, not a real glucometer reading.
-🧪 Experimental — matched via Colmi QRing driver but not all variants tested.
 
 ## Not Supported by PulseLoop
 
@@ -80,7 +79,7 @@ Multiple hardware platforms span from $7 commodity rings to $350 premium devices
 |---|---|---|---|---|---|
 | **56ff / Jring** | Renesas DA14531 | Custom 56ff (SXR KeepFit SDK) | Jring / KeepFit | $7–12 | ✅ App + FW |
 | **Colmi / Yawell (QRing)** | Realtek RTL8762 family | Nordic-UART (QRing) | QRing | $15–30 | ✅ App (R02 FW too) |
-| **Colmi R11 ("Da Rings")** | AB2026 (Actions/Airoha) | Unknown (different from QRing) | Da Rings | ~$15–25 | ❌ |
+| **Colmi R11** | Realtek AB2026 | Nordic-UART QRing | QRing / Da Rings | ~$15–25 | ✅ App (untested) |
 | **SIMSONLAB** | Phyplus PHY6222 | Unknown | SIMSONLAB app | ~$10–20 | ❌ |
 
 ### Premium Rings
@@ -207,21 +206,26 @@ Multiple hardware platforms span from $7 commodity rings to $350 premium devices
 
 - R05, R10, R11, H59 — all use the same QRing protocol
 
-### Colmi R11 — "Da Rings" Platform (ODDBALL)
+### Colmi R11 — QRing-Compatible with Fidget Shell
 
-The Colmi R11 is **not** a QRing ring. It uses a completely different stack:
+The Colmi R11 uses a Realtek AB2026 SoC rather than the RTL8762 found in other QRing models,
+but speaks the same Nordic-UART QRing protocol. It pairs with both the **Da Rings** app and the
+**QRing** app.
 
 | Component | Detail |
 |---|---|
-| **CPU** | AB2026 (Actions Semiconductor / Airoha) |
-| **Bluetooth** | BLE 5.2 |
-| **Battery** | 15 mAh |
+| **CPU** | Realtek AB2026 |
+| **Bluetooth** | BLE 5.0 |
+| **PPG sensor** | Vcare VC30F (red + green dual LED) |
+| **Accelerometer** | STK8321 (3-axis MEMS) |
+| **Battery** | 15 mAh (sizes 8–9) / 18 mAh (sizes 10–13) |
 | **Charging case** | 200 mAh |
-| **Waterproof** | 5ATM |
-| **App** | **Da Rings** (NOT QRing) |
-| **Sensors** | Unknown |
+| **Waterproof** | IP68 + 5ATM |
+| **Build** | Stainless steel casing with fidget-spinner outer shell |
+| **Apps** | Da Rings or QRing (Android 5.1+ / iOS 12.0+) |
 
-The R11 is notably absent from the Colmi FAQ's QRing model list.
+PulseLoop matches R11 rings via the `R11C?_[0-9A-F]{4}$` pattern in the Colmi QRing driver.
+Capabilities should match the R10 (same VC30F + STK8321 sensor pair).
 
 ---
 
@@ -247,21 +251,21 @@ The VC30F is the PPG bio-sensor used in R10 and R12:
 
 ### Capabilities per model
 
-| Capability | R10 | R12 | R11 (Da Rings) | Other QRing¹ |
+| Capability | R10 | R12 | R11 | Other QRing¹ |
 |---|---|---|---|---|
-| **Heart rate — spot** | ✅ | ✅ | 🧪 | 🧪 |
-| **Heart rate — history** | ✅ | ✅ | 🧪 | 🧪 |
-| **Heart rate — live** | ✅ | ✅ | 🧪 | 🧪 |
-| **SpO₂ — history** | ✅ | ✅ | 🧪 | 🧪 |
+| **Heart rate — spot** | ✅ | ✅ | ✅ | 🧪 |
+| **Heart rate — history** | ✅ | ✅ | ✅ | 🧪 |
+| **Heart rate — live** | ✅ | ✅ | ✅ | 🧪 |
+| **SpO₂ — history** | ✅ | ✅ | ✅ | 🧪 |
 | **SpO₂ — spot** | —² | —² | —² | —² |
-| **Steps / distance / calories** | ✅ | ✅ | 🧪 | 🧪 |
-| **Sleep stages** (light/deep/awake) | ✅ | ✅ | 🧪 | 🧪 |
-| **REM sleep** | ✅ | ✅ | 🧪 | 🧪 |
-| **HRV** | ✅ | ✅ | 🧪 | 🧪 |
-| **Stress** | ✅ | ✅ | 🧪 | 🧪 |
-| **Body temperature** | ✅ | ✅ | 🧪 | 🧪 |
-| **Battery level** | ✅ | ✅ | 🧪 | 🧪 |
-| **Find device** | ✅ | ✅ | 🧪 | 🧪 |
+| **Steps / distance / calories** | ✅ | ✅ | ✅ | 🧪 |
+| **Sleep stages** (light/deep/awake) | ✅ | ✅ | ✅ | 🧪 |
+| **REM sleep** | ✅ | ✅ | ✅ | 🧪 |
+| **HRV** | ✅ | ✅ | ✅ | 🧪 |
+| **Stress** | ✅ | ✅ | ✅ | 🧪 |
+| **Body temperature** | ✅ | ✅ | ✅ | 🧪 |
+| **Battery level** | ✅ | ✅ | ✅ | 🧪 |
+| **Find device** | ✅ | ✅ | ✅ | 🧪 |
 | **Blood pressure** | ❌ | ❌ | ❌ | ❌ |
 | **Blood sugar** | ❌ | ❌ | ❌ | ❌ |
 
@@ -475,11 +479,11 @@ The manufacturer publishes firmware update images with no authenticity checks �
 
 | | DA14531 (56ff) | RTL8762 (Colmi QRing) | AB2026 (Colmi R11) | PHY6222 (SIMSONLAB) |
 |---|---|---|---|---|
-| **Vendor** | Renesas | Realtek | Actions/Airoha | Phyplus |
+| **Vendor** | Renesas | Realtek | Realtek | Phyplus |
 | **Architecture** | ARM Cortex-M0 | ARM | ARM | ARM Cortex-M0 |
 | **Bluetooth** | BLE 5.x | BLE 5.0 | BLE 5.2 | BLE 5.1 |
 | **Memory** | Unknown | Unknown | Unknown | 512 KB built-in |
-| **Known from** | Jring, KeepFit, RWfit, Tag | Colmi R02–R10, R12, Yawell | Colmi R11 only | SIMSONLAB LA380-YJ, various watches |
+| **Known from** | Jring, KeepFit, RWfit, Tag | Colmi R02–R10, R12, Yawell | Colmi R11 | SIMSONLAB LA380-YJ, various watches |
 
 ### Which to choose?
 

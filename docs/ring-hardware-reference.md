@@ -26,37 +26,38 @@
 | **Encryption** | None (cleartext) | None | None | None | Unknown |
 | **FW OTA** | ✅ Renesas SUOTA | ✅ BLE OTA (no sign) | ⚠️ Unknown | ⚠️ Unknown | ❌ |
 | **Custom firmware** | ✅ (SR08 ref) | ✅ (RF03 ref) | ❓ | ❓ | ❌ |
-| **PulseLoop support** | ✅ | ✅ | ✅ | ✅ | ❌¹ |
+| **PulseLoop support** | ✅ | ✅ | ✅ | ✅ | 🧪¹ |
 
-¹ Uses a completely different protocol via the "Da Rings" app, not QRing-compatible.
+¹ Matched via Colmi QRing driver when advertising with `R11C?_` pattern. Some R11 variants may use a
+different protocol ("Da Rings" app, AB2026 SoC) and won't be recognized.
 
 ## Supported Rings — Capabilities
 
 | Capability | 56ff / Jring | Colmi R02/etc | Colmi R10 | Colmi R12 | Colmi R11 (Da Rings) |
 |---|---:|---:|---:|---:|---:|
-| Heart rate — spot | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Heart rate — history | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Heart rate — live | ✅ | ✅ | ✅ | ✅ | ❓ |
-| SpO₂ — history | ✅ | ✅ | ✅ | ✅ | ❓ |
-| SpO₂ — spot | ✅ | ❌¹ | ❌¹ | ❌¹ | ❓ |
-| Steps / distance / calories | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Sleep (light/deep/awake) | ✅ | ✅ | ✅ | ✅ | ❓ |
-| REM sleep | ❌ | ✅ | ✅ | ✅ | ❓ |
-| Blood pressure | ✅² | ❌ | ❌ | ❌ | ❓ |
-| Blood sugar | ✅³ | ❌ | ❌ | ❌ | ❓ |
-| HRV | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Stress | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Fatigue | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Skin temperature | ❌ | ✅ | ✅ | ✅ | ❓ |
-| Battery level | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Find device | ✅ | ✅ | ✅ | ✅ | ❓ |
-| Continuous background sync | ❌ | ✅ | ✅ | ✅ | ❓ |
-| FW update via app | ✅ | ✅ | ⚠️ | ⚠️ | ❓ |
+| Heart rate — spot | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Heart rate — history | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Heart rate — live | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| SpO₂ — history | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| SpO₂ — spot | ✅ | ❌¹ | ❌¹ | ❌¹ | 🧪 |
+| Steps / distance / calories | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Sleep (light/deep/awake) | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| REM sleep | ❌ | ✅ | ✅ | ✅ | 🧪 |
+| Blood pressure | ✅² | ❌ | ❌ | ❌ | 🧪 |
+| Blood sugar | ✅³ | ❌ | ❌ | ❌ | 🧪 |
+| HRV | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Stress | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Fatigue | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Skin temperature | ❌ | ✅ | ✅ | ✅ | 🧪 |
+| Battery level | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Find device | ✅ | ✅ | ✅ | ✅ | 🧪 |
+| Continuous background sync | ❌ | ✅ | ✅ | ✅ | 🧪 |
+| FW update via app | ✅ | ✅ | ⚠️ | ⚠️ | 🧪 |
 
 ¹ Colmi family has no on-demand SpO₂ reading; SpO₂ is all-day background only.
 ² Direct PPG sensor reading, no user profile required.
 ³ Profile-derived estimate from sex/age/height/weight, not a real glucometer reading.
-❓ Unknown — PulseLoop does not support the R11's "Da Rings" protocol.
+🧪 Experimental — matched via Colmi QRing driver but not all variants tested.
 
 ## Not Supported by PulseLoop
 

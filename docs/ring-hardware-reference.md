@@ -1,7 +1,69 @@
 # Smart Ring Hardware Reference
 
 > Compiled from project documentation, web research, product pages, and teardowns.
-> Last updated: 2026-06-22
+> Last updated: 2026-06-25
+
+## Supported Rings — Hardware Specs
+
+|  | 56ff / Jring | Colmi R02/R03/etc | Colmi R10 | Colmi R12 |
+|---|---:|---:|---:|---:|
+| **SoC** | Renesas DA14531 | Realtek RTL8762 | RTL8762 ESF | Realtek RTL8762 |
+| **Architecture** | ARM Cortex-M0 | ARM | ARM | ARM |
+| **Bluetooth** | BLE 5.x | BLE 5.0 | BLE 5.0 | BLE 5.0 |
+| **PPG sensor** | Unknown (HR/SpO₂) | Unknown | Vcare VC30F | Vcare VC30F |
+| **PPG LEDs** | Unknown | Unknown | Red + green (dual) | Red + green (dual) |
+| **Accelerometer** | Yes | Unknown | STK8321 | ST LIS2DOC |
+| **Skin temperature** | ❌ | Unknown | ✅ | ✅ |
+| **Battery** | Unknown | Varies | 17 mAh | 15–18 mAh |
+| **Battery life** | Unknown | Varies | ~4–7 days | ~4–7 days |
+| **Charging case** | No | No | ✅ 200 mAh | No |
+| **Display** | No | No | No | ✅ Yes |
+| **Waterproof** | Varies by seller | IP68 / 3ATM | 5ATM | IP68 + 1ATM |
+| **Weight** | Unknown | Unknown | Unknown | ~4 g |
+| **Price** | $7–12 | $15–25 | $15–25 | ~$30 |
+| **Protocol** | Custom 56ff | Nordic-UART QRing | Nordic-UART QRing | Nordic-UART QRing |
+| **Frame size** | Fixed 20 bytes | 16 bytes (checksum) | 16 bytes (checksum) | 16 bytes (checksum) |
+| **Encryption** | None (cleartext) | None | None | None |
+| **FW OTA** | ✅ Renesas SUOTA | ✅ BLE OTA (no sign) | ⚠️ Unknown | ⚠️ Unknown |
+| **Custom firmware** | ✅ (SR08 ref) | ✅ (RF03 ref) | ❓ | ❓ |
+| **PulseLoop support** | ✅ | ✅ | ✅ | ✅ |
+
+## Supported Rings — Capabilities
+
+| Capability | 56ff / Jring | Colmi R02/etc | Colmi R10 | Colmi R12 |
+|---|---:|---:|---:|---:|
+| Heart rate — spot | ✅ | ✅ | ✅ | ✅ |
+| Heart rate — history | ✅ | ✅ | ✅ | ✅ |
+| Heart rate — live | ✅ | ✅ | ✅ | ✅ |
+| SpO₂ — history | ✅ | ✅ | ✅ | ✅ |
+| SpO₂ — spot | ✅ | ❌¹ | ❌¹ | ❌¹ |
+| Steps / distance / calories | ✅ | ✅ | ✅ | ✅ |
+| Sleep (light/deep/awake) | ✅ | ✅ | ✅ | ✅ |
+| REM sleep | ❌ | ✅ | ✅ | ✅ |
+| Blood pressure | ✅² | ❌ | ❌ | ❌ |
+| Blood sugar | ✅³ | ❌ | ❌ | ❌ |
+| HRV | ✅ | ✅ | ✅ | ✅ |
+| Stress | ✅ | ✅ | ✅ | ✅ |
+| Fatigue | ✅ | ✅ | ✅ | ✅ |
+| Skin temperature | ❌ | ✅ | ✅ | ✅ |
+| Battery level | ✅ | ✅ | ✅ | ✅ |
+| Find device | ✅ | ✅ | ✅ | ✅ |
+| Continuous background sync | ❌ | ✅ | ✅ | ✅ |
+| FW update via app | ✅ | ✅ | ⚠️ | ⚠️ |
+
+¹ Colmi family has no on-demand SpO₂ reading; SpO₂ is all-day background only.
+² Direct PPG sensor reading, no user profile required.
+³ Profile-derived estimate from sex/age/height/weight, not a real glucometer reading.
+
+## Not Supported by PulseLoop
+
+| Ring | Reason |
+|---|---|
+| **Colmi R11 ("Da Rings")** | Different protocol (AB2026 SoC), not QRing-compatible |
+| **SIMSONLAB LA380-YJ** | Unknown protocol (PHY6222 SoC), no reverse engineering |
+| **Oura Gen 3/4** | Encrypted BLE, proprietary protocol, subscription required |
+| **Ultrahuman Ring Air** | Not yet implemented (protocol is documented) |
+| **RingConn Gen 2** | No public protocol, no reverse engineering |
 
 ---
 
